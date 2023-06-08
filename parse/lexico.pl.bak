@@ -1,0 +1,915 @@
+:- module(lexico,
+          [ lex/2 ]).
+
+:- use_module(library(edcg)).
+		  
+:- use_module(error_,
+          [ set_error/3,
+            reset_error/0,
+            process_error/0 ]).
+
+:- set_prolog_flag(double_quotes, codes).
+
+%%%% Extended DCG declarations
+
+edcg:acc_info(position, X, In, Out, acc_pos(X, In, Out)).
+
+% Declare predicates using these hidden arguments
+% pred_info(+Predicate, +Arity, +List_of_accumulators)
+% 'dcg' represents the usual DCG accumulator.
+% The additional 'position' accumulator is used to
+% accumulate the term pos(Line, Column).
+
+edcg:pred_info(Name, _, [position, dcg]) :-
+  \+ memberchk(Name, ['!',           % Do not expand
+                      fail,          % "   "   "
+                      eoc,           % Only 'dcg' accumulator
+                      kw,            % "     "
+                      inc_line,      % Only 'position' accumulator
+                      inc_col,       % "     "
+                      add_col,       % "     "
+                      get_pos        % "     "
+                      ]).
+
+edcg:pred_info(eoc,           0, [dcg]).
+edcg:pred_info(kw,            1, [dcg]).
+
+edcg:pred_info(inc_line, 0, [position]).
+edcg:pred_info(inc_col,  0, [position]).
+edcg:pred_info(add_col,  1, [position]).
+edcg:pred_info(get_pos,  1, [position]).
+
+%%%% End of extended DCG declarations
+
+%palabra resevada para que evitar la confucion 
+%entre operator_textual y comandos con id(Identifier)
+
+reserved_words([abs, and, or, not, xor, select, where, rem, div, avg, from]).
+
+% Lexical categories:
+%
+% - Numbers
+%     int(Number). Integer
+%     frac(Integer, Fractional). Fractional
+%     float(Integer, Fractional, Exponent). Float
+% - Strings (delimited by single quotes)
+%     str(String)
+% - Commands:
+%     cmd(Command)
+% - Functions
+%     fn(Function/Arity)
+% - Operators (symbolic and textual):
+%     op(Operator)
+%     comparisonOp(Operator)
+% - Punctuation: ( ) , ; : "
+% - (User) Identifiers:
+%     id(Identifier). For numbers and strings
+
+lex(Input) :-
+  reset_error,
+  (is_list(Input)
+   -> Codes = Input
+   ;  read_file_to_codes(Input, Codes, [])),
+  lex_codes(Codes, Tokens),
+  print(Tokens).
+ 
+lex_codes(Codes, Tokens) :-
+  token_pos_list(Tokens, pos(1,1), _Pos, Codes, []),
+  !.
+ 
+token_pos_list(TokenPosList) -->>
+  separators_star,
+  get_pos(TokPos):position,
+  token(Token),
+  get_pos(NxtPos):position,
+  separator(Token, NextToken),
+  !,
+  {(NextToken == no
+   -> TokenPosList = [Token:TokPos|RemainingTokenPosList]
+   ;  TokenPosList = [Token:TokPos, NextToken:NxtPos|RemainingTokenPosList])},
+  token_pos_list(RemainingTokenPosList).
+token_pos_list([]) -->>
+  separators_star.
+
+separator(_Token, no) -->>
+  eoc,
+  !.
+  
+separator(op(_), no) -->>
+  !,
+  [].
+
+separator(punct(_), no) -->>
+  !,
+  [].
+
+separator(str(_), no) -->>
+  !,
+  [].
+
+separator(_Token, String) -->>
+  string(String),
+  !.
+
+separator(_Token, punct(nl)) -->>
+  "\n",
+  !,
+  inc_line.
+
+separator(_Token, Delimiter) -->>
+  delimiter(Delimiter),
+  !.
+
+separator(_Token, no) -->>
+  separator.
+
+separators -->>
+  skip_non_visible,
+  separator,
+  !,
+  separators_star.
+
+separators_star -->>
+  separators,
+  !.
+  
+separators_star -->>
+  skip_non_visible,
+  [].
+
+separator -->>
+  " ",
+  inc_col:position,
+  !.
+  
+separator -->>
+  "\t",
+  !.
+  
+separator -->>
+  "end_of_file",
+  !.
+
+skip_non_visible -->>
+  [C],
+  {non_visible_code(C)},
+  !,
+  skip_non_visible.
+skip_non_visible -->>
+  [].
+
+token(Number) -->>
+  number(Number),
+  !.
+  
+token(String) -->>
+  string(String),
+  !. 
+
+% modificar para que no sea ni comilla simple(string) 
+% ni comilla doble(referenciar a un id sensibles a mayuscula y minuscula)
+
+token(Delimiter) -->>
+  delimiter(Delimiter),
+  { Delimiter \== punct('"') }, % Excluye comillas dobles
+  !.
+  
+token(cmd(rem(Remark))) -->> % Special command REM: include the rest of the line as the remark
+  command(rem),
+  !,
+  remark(Remark).
+  
+token(id(Identifier)) -->>
+  identifier(Identifier),
+  !.
+
+token(cmd(Command)) -->>
+  command(Command),
+  !.
+  
+token(fn(Function)) -->>
+  function(Function),
+  !.
+  
+ token(op2(Operator)) -->>
+  textual_operator(Operator),
+  !.
+
+token(_Error) -->>
+  set_error(token),
+  !, fail.
+
+remark(Remark) -->>
+  remark_codes(Codes0),
+  {(append([32|_], Codes, Codes0) % Remove the first blank, if it exists
+    -> true
+    ;  Codes = Codes0),
+   atom_codes(Remark, Codes)}.
+
+remark_codes([]) -->>
+  dcg/[10|_], % Lookahead end of line
+  !.
+remark_codes([Code|Codes]) -->>
+  [Code],
+  inc_col,
+  !,
+  remark_codes(Codes).
+remark_codes([]) -->> % No more codes are left to read
+  [],
+  !.
+
+
+delimiter(op2(Delimiter)) -->>
+  operator2(Delimiter),
+  !.
+
+delimiter(op1(Delimiter)) -->>
+  operator1(Delimiter),
+  !.
+
+delimiter(comparisonOp(Delimiter)) -->>
+  comparison_operator(Delimiter),
+  !.
+
+delimiter(punct(Delimiter)) -->>
+  punctuation(Delimiter).
+
+% operator(-Operator)//
+% Operators 
+
+operator1('-')   -->> "-",   !, inc_col.
+operator1('\\')   -->> "\\",   !, inc_col.
+
+
+operator2('<<')  -->> "<<",  !, add_col(2).
+operator2('>>')  -->> ">>",  !, add_col(2).
+operator2('\\/')  -->> "\\/",  !, add_col(2).
+operator2('+')   -->> "+",   !, inc_col.
+operator2('/\\')   -->> "/\\",   !, add_col(2).
+operator2('//')   -->> "//",   !, add_col(2).
+operator2('/')   -->> "/",   !, inc_col.
+operator2('^')   -->> "^",   !, inc_col.
+operator2('-')   -->> "-",   !, inc_col.
+%operator2('&')   -->> "&",   !, inc_col. % bitwise AND operator 
+operator2('||')  -->> "||",  !, add_col(2). % concat
+%operator2('|')   -->> "|",   !, inc_col. % bitwise OR operator 
+operator2('**')  -->> "**",  !, add_col(2). 
+operator2('*')   -->> "*",   !, inc_col. 
+%operator2('~')   -->> "~",   !, inc_col. % bitwise NOT operator 
+operator2('#')   -->> "*",   !, inc_col. 
+
+
+comparison_operator('!=')  -->> "!=",  !, add_col(2). % inequality
+comparison_operator('=')   -->> "=",   !, inc_col.
+comparison_operator('>=')  -->> ">=",  !, add_col(2).
+comparison_operator('<=')  -->> "<=",  !, add_col(2).
+comparison_operator('<>')  -->> "<>",  !, add_col(2). % inequality
+comparison_operator('>')   -->> ">",   !, inc_col.
+comparison_operator('<')   -->> "<",   !, inc_col.
+
+punctuation('(') -->> "(",   !, inc_col.
+punctuation(')') -->> ")",   !, inc_col.
+punctuation(',') -->> ",",   !, inc_col.
+punctuation(';') -->> ";",   !, inc_col.
+punctuation(':') -->> ":",   !, inc_col.
+punctuation('comilla') -->> "'",  !, inc_col.
+punctuation('"') -->> """",  !, inc_col.
+punctuation('nl') -->> "\n", !, inc_line.
+
+
+command('all')                              -->> lc("all"),                              !,  add_col(3).       
+command('allocate')                         -->> lc("allocate"),                         !,  add_col(8).       
+command('alter')                            -->> lc("alter"),                            !,  add_col(5).       
+command('any')                              -->> lc("any"),                              !,  add_col(3).       
+command('are')                              -->> lc("are"),                              !,  add_col(3).       
+command('array')                            -->> lc("array"),                            !,  add_col(5).       
+command('array_agg')                        -->> lc("array_agg"),                        !,  add_col(9).       
+command('array_max_')                       -->> lc("array_max_"),                       !,  add_col(10).      
+command('cardinality')                      -->> lc("cardinality"),                      !,  add_col(11).      
+command('as')                               -->> lc("as"),                               !,  add_col(2).       
+command('asensitive')                       -->> lc("asensitive"),                       !,  add_col(10).      
+command('asymmetric')                       -->> lc("asymmetric"),                       !,  add_col(10).      
+command('at')                               -->> lc("at"),                               !,  add_col(2).       
+command('atomic')                           -->> lc("atomic"),                           !,  add_col(6).       
+command('authorization')                    -->> lc("authorization"),                    !,  add_col(13).      
+command('begin')                            -->> lc("begin"),                            !,  add_col(5).       
+command('begin_frame')                      -->> lc("begin_frame"),                      !,  add_col(11).      
+command('begin_partition')                  -->> lc("begin_partition"),                  !,  add_col(15).      
+command('between')                          -->> lc("between"),                          !,  add_col(7).       
+command('bigint')                           -->> lc("bigint"),                           !,  add_col(6).       
+command('binary')                           -->> lc("binary"),                           !,  add_col(6).       
+command('blob')                             -->> lc("blob"),                             !,  add_col(4).       
+command('boolean')                          -->> lc("boolean"),                          !,  add_col(7).       
+command('both')                             -->> lc("both"),                             !,  add_col(4).       
+command('by')                               -->> lc("by"),                               !,  add_col(2).       
+command('call')                             -->> lc("call"),                             !,  add_col(4).       
+command('called')                           -->> lc("called"),                           !,  add_col(6).       
+command('cardinality')                      -->> lc("cardinality"),                      !,  add_col(11).      
+command('cascaded')                         -->> lc("cascaded"),                         !,  add_col(8).       
+command('case')                             -->> lc("case"),                             !,  add_col(4).       
+command('ceil')                             -->> lc("ceil"),                             !,  add_col(4).       
+command('char')                             -->> lc("char"),                             !,  add_col(4).       
+command('char_length')                      -->> lc("char_length"),                      !,  add_col(11).      
+command('character')                        -->> lc("character"),                        !,  add_col(9).       
+command('character_length')                 -->> lc("character_length"),                 !,  add_col(16).      
+command('check')                            -->> lc("check"),                            !,  add_col(5).       
+command('classifier')                       -->> lc("classifier"),                       !,  add_col(10).      
+command('clob')                             -->> lc("clob"),                             !,  add_col(4).       
+command('close')                            -->> lc("close"),                            !,  add_col(5).       
+command('collate')                          -->> lc("collate"),                          !,  add_col(7).       
+command('collect')                          -->> lc("collect"),                          !,  add_col(7).       
+command('column')                           -->> lc("column"),                           !,  add_col(6).       
+command('commit')                           -->> lc("commit"),                           !,  add_col(6).       
+command('condition')                        -->> lc("condition"),                        !,  add_col(9).       
+command('connect')                          -->> lc("connect"),                          !,  add_col(7).       
+command('constraint')                       -->> lc("constraint"),                       !,  add_col(10).      
+command('contains')                         -->> lc("contains"),                         !,  add_col(8).       
+command('convert')                          -->> lc("convert"),                          !,  add_col(7).       
+command('corr')                             -->> lc("corr"),                             !,  add_col(4).       
+command('corresponding')                    -->> lc("corresponding"),                    !,  add_col(13).      
+command('covar_pop')                        -->> lc("covar_pop"),                        !,  add_col(9).       
+command('covar_samp')                       -->> lc("covar_samp"),                       !,  add_col(10).      
+command('create')                           -->> lc("create"),                           !,  add_col(6).       
+command('cross')                            -->> lc("cross"),                            !,  add_col(5).       
+command('cube')                             -->> lc("cube"),                             !,  add_col(4).       
+command('cume_dist')                        -->> lc("cume_dist"),                        !,  add_col(9).       
+command('current')                          -->> lc("current"),                          !,  add_col(7).       
+command('current_catalog')                  -->> lc("current_catalog"),                  !,  add_col(15).      
+command('current_date')                     -->> lc("current_date"),                     !,  add_col(12).      
+command('current_default_transform_group')  -->> lc("current_default_transform_group"),  !,  add_col(31).      
+command('current_path')                     -->> lc("current_path"),                     !,  add_col(12).      
+command('current_role')                     -->> lc("current_role"),                     !,  add_col(12).      
+command('current_row')                      -->> lc("current_row"),                      !,  add_col(11).      
+command('current_schema')                   -->> lc("current_schema"),                   !,  add_col(14).      
+command('current_time')                     -->> lc("current_time"),                     !,  add_col(12).      
+command('current_timestamp')                -->> lc("current_timestamp"),                !,  add_col(17).      
+command('current_transform_group_for_type') -->> lc("current_transform_group_for_type"), !,  add_col(32).      
+command('current_user')                     -->> lc("current_user"),                     !,  add_col(12).      
+command('cursor')                           -->> lc("cursor"),                           !,  add_col(6).       
+command('cycle')                            -->> lc("cycle"),                            !,  add_col(5).       
+command('date')                             -->> lc("date"),                             !,  add_col(4).        
+command('deallocate')                       -->> lc("deallocate"),                       !,  add_col(10).      
+command('dec')                              -->> lc("dec"),                              !,  add_col(3).       
+command('decfloat')                         -->> lc("decfloat"),                         !,  add_col(8).       
+command('decimal')                          -->> lc("decimal"),                          !,  add_col(7).       
+command('declare')                          -->> lc("declare"),                          !,  add_col(7).       
+command('default')                          -->> lc("default"),                          !,  add_col(7).       
+command('define')                           -->> lc("define"),                           !,  add_col(6).       
+command('delete')                           -->> lc("delete"),                           !,  add_col(6).       
+command('dense_rank')                       -->> lc("dense_rank"),                       !,  add_col(10).      
+command('deref')                            -->> lc("deref"),                            !,  add_col(5).       
+command('describe')                         -->> lc("describe"),                         !,  add_col(8).       
+command('deterministic')                    -->> lc("deterministic"),                    !,  add_col(13).      
+command('disconnect')                       -->> lc("disconnect"),                       !,  add_col(10).      
+command('distinct')                         -->> lc("distinct"),                         !,  add_col(8).       
+command('do')                               -->> lc("do"),                               !,  add_col(2).       
+command('double')                           -->> lc("double"),                           !,  add_col(6).       
+command('drop')                             -->> lc("drop"),                             !,  add_col(4).       
+command('dynamic')                          -->> lc("dynamic"),                          !,  add_col(7).       
+command('each')                             -->> lc("each"),                             !,  add_col(4).       
+command('element')                          -->> lc("element"),                          !,  add_col(7).       
+command('else')                             -->> lc("else"),                             !,  add_col(4).       
+command('elseif')                           -->> lc("elseif"),                           !,  add_col(6).       
+command('empty')                            -->> lc("empty"),                            !,  add_col(5).       
+command('end')                              -->> lc("end"),                              !,  add_col(3).       
+command('end-exec')                         -->> lc("end-exec"),                         !,  add_col(8).       
+command('end_frame')                        -->> lc("end_frame"),                        !,  add_col(9).       
+command('end_partition')                    -->> lc("end_partition"),                    !,  add_col(13).      
+command('equals')                           -->> lc("equals"),                           !,  add_col(6).       
+command('escape')                           -->> lc("escape"),                           !,  add_col(6).       
+command('every')                            -->> lc("every"),                            !,  add_col(5).       
+command('except')                           -->> lc("except"),                           !,  add_col(6).       
+command('exec')                             -->> lc("exec"),                             !,  add_col(4).       
+command('execute')                          -->> lc("execute"),                          !,  add_col(7).       
+command('exists')                           -->> lc("exists"),                           !,  add_col(6).       
+command('external')                         -->> lc("external"),                         !,  add_col(8).       
+command('extract')                          -->> lc("extract"),                          !,  add_col(7).       
+command('false')                            -->> lc("false"),                            !,  add_col(5).       
+command('fetch')                            -->> lc("fetch"),                            !,  add_col(5).       
+command('filter')                           -->> lc("filter"),                           !,  add_col(6).       
+command('first_value')                      -->> lc("first_value"),                      !,  add_col(11).      
+command('for')                              -->> lc("for"),                              !,  add_col(3).       
+command('foreign')                          -->> lc("foreign"),                          !,  add_col(7).       
+command('frame_row')                        -->> lc("frame_row"),                        !,  add_col(9).       
+command('free')                             -->> lc("free"),                             !,  add_col(4).       
+command('from')                             -->> lc("from"),                             !,  add_col(4).       
+command('full')                             -->> lc("full"),                             !,  add_col(4).       
+command('function')                         -->> lc("function"),                         !,  add_col(8).       
+command('fusion')                           -->> lc("fusion"),                           !,  add_col(6).       
+command('get')                              -->> lc("get"),                              !,  add_col(3).       
+command('global')                           -->> lc("global"),                           !,  add_col(6).       
+command('grant')                            -->> lc("grant"),                            !,  add_col(5).       
+command('group')                            -->> lc("group"),                            !,  add_col(5).         
+command('grouping')                         -->> lc("grouping"),                         !,  add_col(8).       
+command('groups')                           -->> lc("groups"),                           !,  add_col(6).       
+command('handler')                          -->> lc("handler"),                          !,  add_col(7).       
+command('having')                           -->> lc("having"),                           !,  add_col(6).       
+command('hold')                             -->> lc("hold"),                             !,  add_col(4).       
+command('identity')                         -->> lc("identity"),                         !,  add_col(8).       
+command('if')                               -->> lc("if"),                               !,  add_col(2).       
+command('in')                               -->> lc("in"),                               !,  add_col(2).       
+command('indicator')                        -->> lc("indicator"),                        !,  add_col(9).       
+command('initial')                          -->> lc("initial"),                          !,  add_col(7).       
+command('inner')                            -->> lc("inner"),                            !,  add_col(5).       
+command('inout')                            -->> lc("inout"),                            !,  add_col(5).       
+command('insensitive')                      -->> lc("insensitive"),                      !,  add_col(11).      
+command('insert')                           -->> lc("insert"),                           !,  add_col(6).       
+command('int')                              -->> lc("int"),                              !,  add_col(3).       
+command('intersect')                        -->> lc("intersect"),                        !,  add_col(9).       
+command('intersection')                     -->> lc("intersection"),                     !,  add_col(12).      
+command('interval')                         -->> lc("interval"),                         !,  add_col(8).       
+command('into')                             -->> lc("into"),                             !,  add_col(4).       
+command('is')                               -->> lc("is"),                               !,  add_col(2).       
+command('iterate')                          -->> lc("iterate"),                          !,  add_col(7).       
+command('join')                             -->> lc("join"),                             !,  add_col(4).       
+command('json_array')                       -->> lc("json_array"),                       !,  add_col(10).      
+command('json_arrayagg')                    -->> lc("json_arrayagg"),                    !,  add_col(13).      
+command('json_exists')                      -->> lc("json_exists"),                      !,  add_col(11).      
+command('json_object')                      -->> lc("json_object"),                      !,  add_col(11).      
+command('json_objectagg')                   -->> lc("json_objectagg"),                   !,  add_col(14).      
+command('json_query')                       -->> lc("json_query"),                       !,  add_col(10).      
+command('json_table')                       -->> lc("json_table"),                       !,  add_col(10).      
+command('json_table_primitive')             -->> lc("json_table_primitive"),             !,  add_col(20).      
+command('json_value')                       -->> lc("json_value"),                       !,  add_col(10).      
+command('lag')                              -->> lc("lag"),                              !,  add_col(3).       
+command('language')                         -->> lc("language"),                         !,  add_col(8).       
+command('large')                            -->> lc("large"),                            !,  add_col(5).       
+command('last_value')                       -->> lc("last_value"),                       !,  add_col(10).      
+command('lateral')                          -->> lc("lateral"),                          !,  add_col(7).       
+command('lead')                             -->> lc("lead"),                             !,  add_col(4).       
+command('leading')                          -->> lc("leading"),                          !,  add_col(7).       
+command('leave')                            -->> lc("leave"),                            !,  add_col(5).       
+command('like')                             -->> lc("like"),                             !,  add_col(4).       
+command('like_regex')                       -->> lc("like_regex"),                       !,  add_col(10).      
+command('local')                            -->> lc("local"),                            !,  add_col(5).       
+command('localtime')                        -->> lc("localtime"),                        !,  add_col(9).       
+command('localtimestamp')                   -->> lc("localtimestamp"),                   !,  add_col(14).      
+command('match')                            -->> lc("match"),                            !,  add_col(5).       
+command('matches')                          -->> lc("matches"),                          !,  add_col(7).       
+command('match_number')                     -->> lc("match_number"),                     !,  add_col(12).      
+command('match_recognize')                  -->> lc("match_recognize"),                  !,  add_col(15).      
+command('member')                           -->> lc("member"),                           !,  add_col(6).       
+command('merge')                            -->> lc("merge"),                            !,  add_col(5).       
+command('method')                           -->> lc("method"),                           !,  add_col(6).            
+command('modifies')                         -->> lc("modifies"),                         !,  add_col(8).       
+command('module')                           -->> lc("module"),                           !,  add_col(6).       
+command('multiset')                         -->> lc("multiset"),                         !,  add_col(8). 
+command('national')                         -->> lc("national"),                         !,  add_col(8).       
+command('natural')                          -->> lc("natural"),                          !,  add_col(7).       
+command('nchar')                            -->> lc("nchar"),                            !,  add_col(5).       
+command('nclob')                            -->> lc("nclob"),                            !,  add_col(5).       
+command('new')                              -->> lc("new"),                              !,  add_col(3).      
+command('none')                             -->> lc("none"),                             !,  add_col(4).       
+command('normalize')                        -->> lc("normalize"),                        !,  add_col(9).      
+command('no')                               -->> lc("no"),                               !,  add_col(2).            
+command('nth_value')                        -->> lc("nth_value"),                        !,  add_col(9).       
+command('ntile')                            -->> lc("ntile"),                            !,  add_col(5).       
+command('null')                             -->> lc("null"),                             !,  add_col(4).       
+command('numeric')                          -->> lc("numeric"),                          !,  add_col(7).       
+command('occurrences_regex')                -->> lc("occurrences_regex"),                !,  add_col(17).      
+command('octet_length')                     -->> lc("octet_length"),                     !,  add_col(12).      
+command('of')                               -->> lc("of"),                               !,  add_col(2).       
+command('offset')                           -->> lc("offset"),                           !,  add_col(6).       
+command('old')                              -->> lc("old"),                              !,  add_col(3).       
+command('omit')                             -->> lc("omit"),                             !,  add_col(4).       
+command('on')                               -->> lc("on"),                               !,  add_col(2).       
+command('one')                              -->> lc("one"),                              !,  add_col(3).       
+command('only')                             -->> lc("only"),                             !,  add_col(4).       
+command('open')                             -->> lc("open"),                             !,  add_col(4).            
+command('order')                            -->> lc("order"),                            !,  add_col(5).       
+command('out')                              -->> lc("out"),                              !,  add_col(3).       
+command('outer')                            -->> lc("outer"),                            !,  add_col(5).       
+command('over')                             -->> lc("over"),                             !,  add_col(4).       
+command('overlaps')                         -->> lc("overlaps"),                         !,  add_col(8).       
+command('overlay')                          -->> lc("overlay"),                          !,  add_col(7).       
+command('parameter')                        -->> lc("parameter"),                        !,  add_col(9).       
+command('partition')                        -->> lc("partition"),                        !,  add_col(9).       
+command('pattern')                          -->> lc("pattern"),                          !,  add_col(7).       
+command('per')                              -->> lc("per"),                              !,  add_col(3).       
+command('percent')                          -->> lc("percent"),                          !,  add_col(7).       
+command('percent_rank')                     -->> lc("percent_rank"),                     !,  add_col(12).      
+command('percentile_cont')                  -->> lc("percentile_cont"),                  !,  add_col(15).      
+command('percentile_disc')                  -->> lc("percentile_disc"),                  !,  add_col(15).      
+command('period')                           -->> lc("period"),                           !,  add_col(6).       
+command('portion')                          -->> lc("portion"),                          !,  add_col(7).       
+command('position')                         -->> lc("position"),                         !,  add_col(8).       
+command('position_regex')                   -->> lc("position_regex"),                   !,  add_col(14).      
+command('precedes')                         -->> lc("precedes"),                         !,  add_col(8).       
+command('precision')                        -->> lc("precision"),                        !,  add_col(9).       
+command('prepare')                          -->> lc("prepare"),                          !,  add_col(7).      
+command('primary')                          -->> lc("primary"),                          !,  add_col(7).       
+command('procedure')                        -->> lc("procedure"),                        !,  add_col(9).       
+command('range')                            -->> lc("range"),                            !,  add_col(5).       
+command('rank')                             -->> lc("rank"),                             !,  add_col(4).       
+command('reads')                            -->> lc("reads"),                            !,  add_col(5).       
+command('real')                             -->> lc("real"),                             !,  add_col(4).       
+command('recursive')                        -->> lc("recursive"),                        !,  add_col(9).       
+command('ref')                              -->> lc("ref"),                              !,  add_col(3).       
+command('references')                       -->> lc("references"),                       !,  add_col(10).      
+command('referencing')                      -->> lc("referencing"),                      !,  add_col(11).      
+command('regr_avgx')                        -->> lc("regr_avgx"),                        !,  add_col(9).       
+command('regr_avgy')                        -->> lc("regr_avgy"),                        !,  add_col(9).       
+command('regr_count')                       -->> lc("regr_count"),                       !,  add_col(10).      
+command('regr_intercept')                   -->> lc("regr_intercept"),                   !,  add_col(14).      
+command('regr_r2')                          -->> lc("regr_r2"),                          !,  add_col(7).       
+command('regr_slope')                       -->> lc("regr_slope"),                       !,  add_col(10).      
+command('regr_sxx')                         -->> lc("regr_sxx"),                         !,  add_col(8).       
+command('regr_sxy')                         -->> lc("regr_sxy"),                         !,  add_col(8).       
+command('regr_syy')                         -->> lc("regr_syy"),                         !,  add_col(8).       
+command('release')                          -->> lc("release"),                          !,  add_col(7).       
+command('resignal')                         -->> lc("resignal"),                         !,  add_col(8).       
+command('result')                           -->> lc("result"),                           !,  add_col(6).        
+command('return')                           -->> lc("return"),                           !,  add_col(6).       
+command('returns')                          -->> lc("returns"),                          !,  add_col(7).       
+command('revoke')                           -->> lc("revoke"),                           !,  add_col(6).       
+command('rollback')                         -->> lc("rollback"),                         !,  add_col(8).       
+command('rollup')                           -->> lc("rollup"),                           !,  add_col(6).       
+command('row')                              -->> lc("row"),                              !,  add_col(3).       
+command('row_number')                       -->> lc("row_number"),                       !,  add_col(10).      
+command('rows')                             -->> lc("rows"),                             !,  add_col(4).        
+command('running')                          -->> lc("running"),                          !,  add_col(7).      
+command('savepoint')                        -->> lc("savepoint"),                        !,  add_col(9).       
+command('scope')                            -->> lc("scope"),                            !,  add_col(5).       
+command('scroll')                           -->> lc("scroll"),                           !,  add_col(6).       
+command('search')                           -->> lc("search"),                           !,  add_col(6).       
+command('seek')                             -->> lc("seek"),                             !,  add_col(4).      
+command('select')                           -->> lc("select"),                           !,  add_col(6).       
+command('sensitive')                        -->> lc("sensitive"),                        !,  add_col(9).       
+command('session_user')                     -->> lc("session_user"),                     !,  add_col(12).      
+command('set')                              -->> lc("set"),                              !,  add_col(3).       
+command('show')                             -->> lc("show"),                             !,  add_col(4).       
+command('signal')                           -->> lc("signal"),                           !,  add_col(6).       
+command('similar')                          -->> lc("similar"),                          !,  add_col(7).       
+command('skip')                             -->> lc("skip"),                             !,  add_col(4).       
+command('smallint')                         -->> lc("smallint"),                         !,  add_col(8).       
+command('some')                             -->> lc("some"),                             !,  add_col(4).       
+command('specific')                         -->> lc("specific"),                         !,  add_col(8).       
+command('specifictype')                     -->> lc("specifictype"),                     !,  add_col(12).      
+command('sql')                              -->> lc("sql"),                              !,  add_col(3).       
+command('sqlexception')                     -->> lc("sqlexception"),                     !,  add_col(12).      
+command('sqlstate')                         -->> lc("sqlstate"),                         !,  add_col(8).       
+command('sqlwarning')                       -->> lc("sqlwarning"),                       !,  add_col(10).      
+command('start')                            -->> lc("start"),                            !,  add_col(5).       
+command('static')                           -->> lc("static"),                           !,  add_col(6).       
+command('stddev_pop')                       -->> lc("stddev_pop"),                       !,  add_col(10).      
+command('stddev_samp')                      -->> lc("stddev_samp"),                      !,  add_col(11).      
+command('submultiset')                      -->> lc("submultiset"),                      !,  add_col(11).      
+command('subset')                           -->> lc("subset"),                           !,  add_col(6).       
+command('substring')                        -->> lc("substring"),                        !,  add_col(9).       
+command('substring_regex')                  -->> lc("substring_regex"),                  !,  add_col(15).      
+command('succeeds')                         -->> lc("succeeds"),                         !,  add_col(8).       
+command('symmetric')                        -->> lc("symmetric"),                        !,  add_col(9).       
+command('system')                           -->> lc("system"),                           !,  add_col(6).       
+command('system_time')                      -->> lc("system_time"),                      !,  add_col(11).      
+command('system_user')                      -->> lc("system_user"),                      !,  add_col(11).      
+command('table')                            -->> lc("table"),                            !,  add_col(5).       
+command('tablesample')                      -->> lc("tablesample"),                      !,  add_col(11).      
+command('then')                             -->> lc("then"),                             !,  add_col(4).       
+command('time')                             -->> lc("time"),                             !,  add_col(4).       
+command('timestamp')                        -->> lc("timestamp"),                        !,  add_col(9).       
+command('timezone_hour')                    -->> lc("timezone_hour"),                    !,  add_col(13).      
+command('timezone_minute')                  -->> lc("timezone_minute"),                  !,  add_col(15).      
+command('to')                               -->> lc("to"),                               !,  add_col(2).       
+command('trailing')                         -->> lc("trailing"),                         !,  add_col(8).       
+command('translate')                        -->> lc("translate"),                        !,  add_col(9).       
+command('translate_regex')                  -->> lc("translate_regex"),                  !,  add_col(15).      
+command('translation')                      -->> lc("translation"),                      !,  add_col(11).      
+command('treat')                            -->> lc("treat"),                            !,  add_col(5).       
+command('trigger')                          -->> lc("trigger"),                          !,  add_col(7).       
+command('trim_array')                       -->> lc("trim_array"),                       !,  add_col(10).      
+command('true')                             -->> lc("true"),                             !,  add_col(4).       
+command('uescape')                          -->> lc("uescape"),                          !,  add_col(7).       
+command('union')                            -->> lc("union"),                            !,  add_col(5).       
+command('unique')                           -->> lc("unique"),                           !,  add_col(6).       
+command('unknown')                          -->> lc("unknown"),                          !,  add_col(7).       
+command('unnest')                           -->> lc("unnest"),                           !,  add_col(6).       
+command('until')                            -->> lc("until"),                            !,  add_col(5).       
+command('update')                           -->> lc("update"),                           !,  add_col(6).       
+command('user')                             -->> lc("user"),                             !,  add_col(4).       
+command('using')                            -->> lc("using"),                            !,  add_col(5).       
+command('value')                            -->> lc("value"),                            !,  add_col(5).       
+command('values')                           -->> lc("values"),                           !,  add_col(6).       
+command('value_of')                         -->> lc("value_of"),                         !,  add_col(8).       
+command('var_pop')                          -->> lc("var_pop"),                          !,  add_col(7).       
+command('var_samp')                         -->> lc("var_samp"),                         !,  add_col(8).       
+command('varbinary')                        -->> lc("varbinary"),                        !,  add_col(9).       
+command('varchar')                          -->> lc("varchar"),                          !,  add_col(7).       
+command('varying')                          -->> lc("varying"),                          !,  add_col(7).       
+command('versioning')                       -->> lc("versioning"),                       !,  add_col(10).      
+command('when')                             -->> lc("when"),                             !,  add_col(4).       
+command('whenever')                         -->> lc("whenever"),                         !,  add_col(8).       
+command('where')                            -->> lc("where"),                            !,  add_col(5).       
+command('while')                            -->> lc("while"),                            !,  add_col(5).       
+command('width_bucket')                     -->> lc("width_bucket"),                     !,  add_col(12).      
+command('window')                           -->> lc("window"),                           !,  add_col(6).       
+command('with')                             -->> lc("with"),                             !,  add_col(4).       
+command('within')                           -->> lc("within"),                           !,  add_col(6).       
+command('without')                          -->> lc("without"),                          !,  add_col(7).             
+
+textual_operator('and') -->> lc("and"), !, add_col(3).
+textual_operator('or')  -->> lc("or"),  !, add_col(2).
+textual_operator('not') -->> lc("not"), !, add_col(3).
+textual_operator('xor') -->> lc("xor"), !, add_col(3).
+textual_operator('rem') -->> lc("rem"), !, add_col(3).
+textual_operator('div') -->> lc("div"), !, add_col(3).
+
+function('sqrt'/1)               -->> lc("sqrt"), !, add_col(4).
+function('ln'/1)                 -->> lc("ln"), !, add_col(2).
+function('log'/1)                -->> lc("log"), !, add_col(3).
+function('log'/2)                -->> lc("log"), !, add_col(3).
+function('sin'/1)                -->> lc("sin"), !, add_col(3).
+function('cos'/1)                -->> lc("cos"), !, add_col(3).
+function('tan'/1)                -->> lc("tan"), !, add_col(3).
+function('cot'/1)                -->> lc("cot"), !, add_col(3).
+function('asin'/1)               -->> lc("asin"), !, add_col(4).
+function('acos'/1)               -->> lc("acos"), !, add_col(4).
+function('atan'/1)               -->> lc("atan"), !, add_col(4).
+function('acot'/1)               -->> lc("acot"), !, add_col(4).
+function('abs'/1)                -->> lc("abs"), !, add_col(3).
+function('power'/2)              -->> lc("power"), !, add_col(5).
+function('exp'/1)                -->> lc("exp"), !, add_col(3).
+function('float'/1)              -->> lc("float"), !, add_col(5).
+function('integer'/1)            -->> lc("integer"), !, add_col(7).
+function('sign'/1)               -->> lc("sign"), !, add_col(4).
+function('gcd'/2)                -->> lc("gcd"), !, add_col(3).
+function('min'/2)                -->> lc("min"), !, add_col(3).
+function('max'/2)                -->> lc("max"), !, add_col(3).
+function('mod'/2)                -->> lc("mod"), !, add_col(3).
+function('trunc'/1)              -->> lc("trunc"), !, add_col(5).
+function('truncate'/1)           -->> lc("truncate"), !, add_col(8).
+function('trunc'/2)              -->> lc("trunc"), !, add_col(5).
+function('truncate'/2)           -->> lc("truncate"), !, add_col(8).
+function('float_integer_part'/1) -->> lc("float_integer_part"), !, add_col(18).
+function('float_fractional_part'/1)-->> lc("float_fractional_part"), !, add_col(21).
+function('round'/1)              -->> lc("round"), !, add_col(5).
+function('round'/2)              -->> lc("round"), !, add_col(5).
+function('floor'/1)              -->> lc("floor"), !, add_col(5).
+function('ceiling'/1)            -->> lc("ceiling"), !, add_col(7).
+function('rand'/1)               -->> lc("rand"), !, add_col(4).
+function('rand'/2)               -->> lc("rand"), !, add_col(4).
+function('concat'/2)             -->> lc("concat"), !, add_col(6).
+function('length'/1)             -->> lc("length"), !, add_col(6).
+function('like-escape'/0)        -->> lc("like-escape"), !, add_col(11).
+function('lower'/1)              -->> lc("lower"), !, add_col(5).
+function('lpad'/2)               -->> lc("lpad"), !, add_col(4).
+function('lpad'/3)               -->> lc("lpad"), !, add_col(4).
+function('rpad'/2)               -->> lc("rpad"), !, add_col(4).
+function('rpad'/3)               -->> lc("rpad"), !, add_col(4).
+function('instr'/2)              -->> lc("instr"), !, add_col(5).
+function('replace'/3)            -->> lc("replace"), !, add_col(7).
+function('reverse'/1)            -->> lc("reverse"), !, add_col(7).
+function('substr'/3)             -->> lc("substr"), !, add_col(6).
+function('upper'/1)              -->> lc("upper"), !, add_col(5).
+function('left'/2)               -->> lc("left"), !, add_col(4).
+function('ltrim'/1)              -->> lc("ltrim"), !, add_col(5).
+function('rtrim'/1)              -->> lc("rtrim"), !, add_col(5).
+function('trim'/1)               -->> lc("trim"), !, add_col(4).
+function('repeat'/2)             -->> lc("repeat"), !, add_col(6).
+function('right'/2)              -->> lc("right"), !, add_col(5).
+function('space'/1)              -->> lc("space"), !, add_col(5).
+function('year'/1)               -->> lc("year"), !, add_col(4).
+function('month'/1)              -->> lc("month"), !, add_col(5).
+function('day'/1)                -->> lc("day"), !, add_col(3).
+function('hour'/1)               -->> lc("hour"), !, add_col(4).
+function('minute'/1)             -->> lc("minute"), !, add_col(6).
+function('second'/1)             -->> lc("second"), !, add_col(6).
+function('datetime_add'/2)       -->> lc("datetime_add"), !, add_col(12).
+function('datetime_sub'/2)       -->> lc("datetime_sub"), !, add_col(12).
+function('add_months'/2)         -->> lc("add_months"), !, add_col(10).
+function('current_time'/0)       -->> lc("current_time"), !, add_col(12).
+function('current_date'/0)       -->> lc("current_date"), !, add_col(12).
+function('current_datetime'/0)   -->> lc("current_datetime"), !, add_col(16).
+function('sysdate'/0)            -->> lc("sysdate"), !, add_col(7).
+function('to_char'/1)            -->> lc("to_char"), !, add_col(7).
+function('to_char'/2)            -->> lc("to_char"), !, add_col(7).
+function('to_date'/1)            -->> lc("to_date"), !, add_col(7).
+function('to_date'/2)            -->> lc("to_date"), !, add_col(7).
+function('cast'/2)               -->> lc("cast"), !, add_col(4).
+function('coalesce'/n)           -->> lc("coalesce"), !, add_col(8).
+function('greatest'/n)           -->> lc("greatest"), !, add_col(8).
+function('iif'/3)                -->> lc("iif"), !, add_col(3).
+function('least'/n)              -->> lc("least"), !, add_col(5).
+function('nvl'/2)                -->> lc("nvl"), !, add_col(3).
+function('nvl2'/3)               -->> lc("nvl2"), !, add_col(4).
+function('nullif'/2)             -->> lc("nullif"), !, add_col(6).
+function('avg'/1)                -->> lc("avg"), !, add_col(3).
+function('count'/1)              -->> lc("count"), !, add_col(5).
+function('count'/0)              -->> lc("count"), !, add_col(5).
+function('max'/1)                -->> lc("max"), !, add_col(3).
+function('min'/1)                -->> lc("min"), !, add_col(3).
+function('sum'/1)                -->> lc("sum"), !, add_col(3).
+function('times'/1)              -->> lc("times"), !, add_col(5).
+
+
+lc([Code|Codes]) -->>
+  [C],
+  {to_lowercase_code(C, Code)},
+  lc(Codes).
+lc([]) -->>
+  [].
+  
+number(NumberToken) -->>
+  positive_number(NumberToken).
+  
+positive_number(Number) -->>
+  ".", % Optional integer part in a fractional number
+  rest_of_non_integer_positive_number(0, Number),
+  !.
+  
+positive_number(Number) -->>
+  positive_integer(Integer),
+  ("."
+   -> rest_of_non_integer_positive_number(Integer, Number)
+   ;  exponent(Exponent)
+      -> {Number = float(Integer, 0, Exponent)}
+      ;  {Number = int(Integer)}).
+
+rest_of_non_integer_positive_number(Integer, Number) -->>
+  inc_col,
+  set_error(fractional),
+  positive_integer(Fractional),
+  set_error(fractional),
+  (exponent(Exponent)
+   -> {Number = float(Integer, Fractional, Exponent)}
+   ;  {Number = frac(Integer, Fractional)}).
+   
+exponent(Exponent) -->>
+  ("e" ; "E"),
+  inc_col,
+  set_error(exponent),
+  integer_exponent(Exponent),
+  set_error(exponent).
+  
+integer_exponent(Exponent) -->>
+  optional_sign(Sign, Cols),
+  add_col(Cols),
+  positive_integer(PosExponent),
+  {Sign == '+'
+   -> Exponent = PosExponent
+   ;  Exponent is -PosExponent}.
+   
+optional_sign('+', 1) -->>
+  "+",
+  !.
+optional_sign('-', 1) -->>
+  "-",
+  !.
+optional_sign('+', 0) -->>
+  [].
+
+% positive_integer(-PositiveInteger)//
+positive_integer(PositiveInteger) -->>
+  digits_codes(DigitsCodes),
+  {number_codes(PositiveInteger, DigitsCodes),
+   length(DigitsCodes, Length)},
+  add_col(Length),
+  set_error(number).
+
+% digits_codes(-DigitsCodes)//
+% One or more digits
+digits_codes([DigitCode|DigitsCodes]) -->>
+  digit_code(DigitCode),
+  !,
+  more_digits_codes(DigitsCodes).
+  
+% more_digits_codes(-DigitsCodes)//
+more_digits_codes(DigitsCodes) -->>
+  digits_codes(DigitsCodes),
+  !.
+more_digits_codes([]) -->>
+  [].
+  
+% digit_code(-DigitCode)//
+digit_code(DigitCode) -->>
+  [DigitCode],
+  {"0" = [C0],
+   "9" = [C9],
+   DigitCode >= C0,
+   DigitCode =< C9}.
+
+% string(-String)
+% Strings (str/1). Delimited by simple quotes.
+% Double quotes inside a string are scaped as doubling them
+% Seiko Data 2000 does not seem to behave like this
+string(str(String)) -->>
+  "'",
+  rest_of_string(String).
+  
+% rest_of_string(-String)//
+rest_of_string(String) -->>
+  string_codes(StringCodes),
+  "'",
+  !,
+  {atom_codes(String, StringCodes),
+   length(StringCodes, Length),
+   Cols is Length+2},
+  add_col(Cols).
+rest_of_string(_StringCodes) -->>
+  set_error(string),
+  {!, fail}.
+
+% string_codes(-Codes)//
+string_codes([Code|Codes]) -->>
+  "''", % Escaped double quotes
+  !,
+  {"'" = [Code]},
+  string_codes(Codes).
+string_codes([]) -->> % End of string
+  {[C]="'"},
+  dcg/[C|_], % Lookahead. right-hand contexts unsupported in -->>
+  !.
+string_codes([Code|Codes]) -->>
+  [Code],
+  string_codes(Codes).
+
+% Regla para reconocer un identificador
+identifier(Identifier) -->>
+  letter(Code),
+  alphanum_star(Codes),
+  {atom_codes(Identifier, [Code|Codes])},
+  % Verificar que el identificador no sea una palabra reservada
+  {reserved_words(Words),
+    ( member(Identifier, Words) -> !, fail
+    ; true )
+  },
+  {length([Code|Codes], Length)},
+  add_col(Length).
+
+identifier(_Identifier) -->>
+  set_error(identifier),
+  {!, fail}.
+
+
+% alphanum_star(-Codes)//
+% Zero or more alphanumeric codes
+alphanum_star([Code|Codes]) -->>
+  ( letter(Code)
+  ; digit_code(Code)),
+  alphanum_star(Codes).
+alphanum_star([]) -->>
+  [].
+
+% letter(-LetterCode)//
+letter(LetterCode) -->>
+  [Code],
+  {is_letter_code(Code),
+   to_lowercase_code(Code, LetterCode)}.
+
+% is_letter_code(-Code)
+is_letter_code(Code) :-
+  is_uppercase_letter_code(Code).
+is_letter_code(Code) :-
+  is_lowercase_letter_code(Code).
+
+% is_uppercase_letter_code(-Code)
+is_uppercase_letter_code(Code) :-
+  "A" = [UA],
+  "Z" = [UZ],
+  UA =< Code,
+  UZ >= Code,
+  !.
+  
+% is_lowercase_letter_code(-Code)
+is_lowercase_letter_code(Code) :-
+  "a" = [DA],
+  "z" = [DZ],
+  DA =< Code,
+  DZ >= Code.
+
+% to_lowercase_code(+Code, -DCode)
+to_lowercase_code(Code, DCode) :-
+  is_uppercase_letter_code(Code),
+  !,
+  "a" = [DA],
+  "A" = [UA],
+  DCode is Code + DA - UA.
+to_lowercase_code(Code, Code).
+
+inc_line -->>
+  [add_line(1)]:position.
+
+inc_col -->>
+  [add_col(1)]:position.
+
+add_col(N) -->>
+  [add_col(N)]:position.
+
+get_pos(Position) -->>
+  [get_pos(Position)]:position.
+
+acc_pos(add_col(I), pos(L, C), pos(L, C1)) :-
+  C1 is C+I,
+  !.
+acc_pos(add_line(I), pos(L, _C), pos(L1, 1)) :-
+  L1 is L+I,
+  !.
+acc_pos(get_pos(Position), Position, Position).
+
+set_error(Error) -->>
+  get_pos(Position):position,
+  {set_error('Lexical', Error, Position)}.
+
+non_visible_code(9).   % Tabulator
+non_visible_code(13).  % Linefeed
+
+eoc([], []).
