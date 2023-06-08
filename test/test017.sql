@@ -1,4 +1,28 @@
-select t1.a from v1_2
+/*% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % ISL (Information Schema Language) statements
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-insert into t
+% ISLstmt ::=
+%   SHOW TABLES
+%   |
+%   SHOW VIEWS
+%   |
+%   SHOW DATABASES
+%   |
+%   DESCRIBE [TableName|ViewName]*/
 
+show tables
+
+show views
+
+SHOW DATABASES
+
+DESCRIBE t
+
+/*ERROR*/
+
+-- table name
+--DESCRIBE 2
+
+-- TABLES, VIEWS or DATABASES
+--show t

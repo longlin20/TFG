@@ -1,5 +1,5 @@
 % In this file, I will place all the clauses 
-% from the des_common.pl file that are necessary for parser.pl.
+% from the des_common.pl and des_commands.pl file that are necessary for parser.pl.
 
 :- module(utils,
           [ my_map_1/2,

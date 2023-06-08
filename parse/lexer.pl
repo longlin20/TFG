@@ -354,6 +354,7 @@ command('commit')                           -->> lc("commit"),                  
 command('constraints')                      -->> lc("constraints"),                      not_more_char,  !,  add_col(11).                
 command('constraint')                       -->> lc("constraint"),                       not_more_char,  !,  add_col(10).       
 command('create')                           -->> lc("create"),                           not_more_char,  !,  add_col(6).    
+command('databases')                        -->> lc("databases"),                        not_more_char,  !,  add_col(9).                   
 command('database')                         -->> lc("database"),                         not_more_char,  !,  add_col(8).                     
 command('date')                             -->> lc("date"),                             not_more_char,  !,  add_col(4).       
 command('decimal')                          -->> lc("decimal"),                          not_more_char,  !,  add_col(7).           
@@ -407,9 +408,10 @@ command('rows')                             -->> lc("rows"),                    
 command('savepoint')                        -->> lc("savepoint"),                        not_more_char,  !,  add_col(9).       
 command('select')                           -->> lc("select"),                           not_more_char,  !,  add_col(6).          
 command('set')                              -->> lc("set"),                              not_more_char,  !,  add_col(3).       
-command('show')                             -->> lc("show"),                             not_more_char,  !,  add_col(4).       
+command('show')                             -->> lc("show"),                             not_more_char,  !,  add_col(4).        
 command('smallint')                         -->> lc("smallint"),                         not_more_char,  !,  add_col(8).       
-command('some')                             -->> lc("some"),                             not_more_char,  !,  add_col(4).       
+command('some')                             -->> lc("some"),                             not_more_char,  !,  add_col(4).
+command('tables')                           -->> lc("tables"),                           not_more_char,  !,  add_col(6).              
 command('table')                            -->> lc("table"),                            not_more_char,  !,  add_col(5).       
 command('then')                             -->> lc("then"),                             not_more_char,  !,  add_col(4).       
 command('timestamp')                        -->> lc("timestamp"),                        not_more_char,  !,  add_col(9).       
@@ -424,10 +426,12 @@ command('using')                            -->> lc("using"),                   
 command('values')                           -->> lc("values"),                           not_more_char,  !,  add_col(6).    
 command('varchar2')                         -->> lc("varchar2"),                         not_more_char,  !,  add_col(8).          
 command('varchar')                          -->> lc("varchar"),                          not_more_char,  !,  add_col(7).  
+command('views')                            -->> lc("views"),                            not_more_char,  !,  add_col(5).                               
 command('view')                             -->> lc("view"),                             not_more_char,  !,  add_col(4).                               
 command('when')                             -->> lc("when"),                             not_more_char,  !,  add_col(4).       
 command('where')                            -->> lc("where"),                            not_more_char,  !,  add_col(5).       
-command('with')                             -->> lc("with"),                             not_more_char,  !,  add_col(4).       
+command('with')                             -->> lc("with"),                             not_more_char,  !,  add_col(4).   
+command('work')                             -->> lc("work"),                             not_more_char,  !,  add_col(4).    
      
 function('sqrt'/1)                  -->> lc("sqrt"),                     not_more_char, !, add_col(4).
 function('ln'/1)                    -->> lc("ln"),                       not_more_char, !, add_col(2).

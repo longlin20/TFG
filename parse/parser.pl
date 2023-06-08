@@ -93,46 +93,34 @@ filter_tokens([H|Filtered], Rest) -->
 %   DDLstmt[;] | DMLstmt[;] | DQLstmt[;] | ISLstmt[;] | TMLstmt[;]
 statements(STs1/STs) -->
   dmlStmt(STs1/STs2),
-  optional_semicolon,
+  optional_punct(';'),
   !,
   parse(STs2/STs).
 
 statements(STs1/STs) -->
   dqlStmt(STs1/STs2),
-  optional_semicolon,
+  optional_punct(';'),
   !,
   parse(STs2/STs).
 
+statements(STs1/STs) -->
+  islStmt(STs1/STs2),
+  optional_punct(';'),
+  !,
+  parse(STs2/STs).
+
+statements(STs1/STs) -->
+  tmlStmt(STs1/STs2),
+  optional_punct(';'),
+  !,
+  parse(STs2/STs).
+  
 statements(_) -->
   set_error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)').
 
-% optional_semicolon//
-% Zero or one semicolon
-optional_semicolon -->
-  semicolon
-  -> !
-  ;  [].
-
-% semicolon//
-% One semicolon
-semicolon -->
-  [punct(';'):_Pos].
-
 /*statements(STs1/STs) -->
-  ddlStmt(STs1/STs2)    # 'Statement',
-  optional_semicolon,
-  !,
-  parse(STs2/STs).
-
-statements(STs1/STs) -->
-  islStmt(STs1/STs2)    # 'Statement',
-  optional_semicolon,
-  !,
-  parse(STs2/STs).
-
-statements(STs1/STs) -->
-  tmlStmt(STs1/STs2)    # 'Statement',
-  optional_semicolon,
+  ddlStmt(STs1/STs2),
+  optional_punct(';'),
   !,
   parse(STs2/STs).*/
 
@@ -155,7 +143,11 @@ b_DQL(SQLst) -->
   dqlStmt(SQLst)                      # 'todo',
   [punct(')'):_]                      # 'Closing parenthesis'.
 
-% dmlStmt(-STs1/STs)//
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % DML (Data Manipulation Language) statements
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 % DMLstmt ::=
 %   INSERT INTO TableName[(Att {,Att})] VALUES (ExprDef {,ExprDef}) {, (ExprDef {,ExprDef})}
 %   |
@@ -170,23 +162,23 @@ b_DQL(SQLst) -->
 dmlStmt([insert_into(TableName,Colnames, Vs)|STs]/STs) -->
   cmd(insert)                         # 'INSERT',
   cmd(into)                           # 'INTO',
-  tablename(TableName)                # 'table name',
+  tablename_or_viewname_colname(TableName)  # 'table name',
   {(get_relation_arity(TableName,L) -> true ; true)},
   insert_values(L, Vs),
   {get_table_untyped_arguments(TableName,Colnames)},
   !.
 
-% tablename(TableName)//
-% get table name -> quoted_id() | id() | (id())
-tablename(TableName) -->
-  [quoted_id(TableName):_Pos].
+% tablename_or_viewname_colname(Name)//
+% get table,view or col name -> quoted_id() | id() | (id())
+tablename_or_viewname_colname(Name) -->
+  [quoted_id(Name):_Pos].
 
-tablename(TableName) -->
-  [id(TableName):_Pos].
+tablename_or_viewname_colname(Name) -->
+  [id(Name):_Pos].
 
-tablename(TableName) --> 
+tablename_or_viewname_colname(Name) --> 
   optional_punct('['),
-  [id(TableName):_Pos],
+  [id(Name):_Pos],
   optional_punct(']').
 
 %To obtain the arity (the number of attributes or columns) of a 
@@ -201,7 +193,7 @@ get_relation_arity('$des',Relation,Arity) :-
 get_relation_arity(Connection,Relation,Arity) :-
   my_odbc_get_table_arity(Connection,Relation,Arity).
 
-%insert_values(Arity)
+%insert_values(Arity, Values)
 insert_values(L,Vs) -->
   cmd(default)                        # 'DEFAULT',
   cmd(values)                         # 'VALUES',
@@ -216,7 +208,6 @@ insert_values(L, Ts) -->
 
 insert_values(_L, select()) -->
   ub_DQL([select()|STs]/STs).
-
 
 insert_values(_,_) -->
   set_error('Syntax', 'VALUES, select statement, or DEFAULT VALUES').
@@ -244,7 +235,7 @@ sql_ground_tuple_list(L,[T|Ts]) -->
   remaining_sql_ground_tuple_list(L,Ts).
 
 remaining_sql_ground_tuple_list(L,Ts) -->
-  punct(',')                      # 'comma',
+  punct(',')                          # 'comma',
   !,
   sql_ground_tuple_list(L,Ts).
 remaining_sql_ground_tuple_list(_,[]) -->
@@ -252,9 +243,9 @@ remaining_sql_ground_tuple_list(_,[]) -->
 
 sql_ground_tuple(L,Cs) -->
   current_position(Position),
-  punct('(')                      # 'opening parenthesis',
+  punct('(')                          # 'opening parenthesis',
   cs_expressions_def(Cs),
-  punct(')')                      # 'closing parenthesis or comma',
+  punct(')')                          # 'closing parenthesis or comma',
   !,
   {length(Cs,TL),
     (L=TL -> true ;
@@ -263,7 +254,7 @@ sql_ground_tuple(L,Cs) -->
 
 cs_expressions_def([E1, E2|Es]) -->
   expressions_def(E1),
-  punct(',')                      # 'comma',
+  punct(',')                          # 'comma',
   !,
   cs_expressions_def([E2|Es]).
 cs_expressions_def([E]) -->
@@ -282,28 +273,35 @@ constant(E) -->
   value(E). %Number or String
 
 % DATE 'String' % String in format '[BC] Int-Int-Int'
-constant(DateStr) -->
+% date(Str)
+constant(date(Str)) -->
   cmd(date)                           # 'DATE',
   current_position(Position),
-  [str(Str):_]                        # 'string',
+  str(Str)                            # 'string',
   !,
-  { is_date_format(Str, Position) },
-  {format(atom(DateStr), "DATE '~s'", [Str])}. % Verify Str is in format 'Int-Int-Int'
+  { is_date_format(Str, Position) }. % Verify Str is in format '[BC] Int-Int-Int'
+ 
 
 % TIME 'String' % String in format 'Int:Int:Int'
-constant(Str) -->
+% time(Str)
+constant(time(Str)) -->
   cmd(time)                           # 'TIME',
   current_position(Position),
-  [str(Str):_]                        # 'string',
+  str(Str)                            # 'string',
   !,
-  { is_time_format(Str, Position) }. % Verify Str is in format 'Int:Int:Int'
+  { is_time_format(Str, Position) }.  % Verify Str is in format 'Int:Int:Int'
+ 
   
-  
+
 % TIMESTAMP 'String' % String in format '[BC] Int-Int-Int Int:Int:Int'
-constant(Str) -->
+% timestamp(Str)
+constant(timestamp(Str)) -->
   cmd(timestamp)                      # 'TIMESTAMP',
-  [str(Str):_]                        # 'string',
-  !.
+  current_position(Position),
+  str(Str)                            # 'string',
+  !,
+  { is_timestamp_format(Str, Position) }.  % Verify Str is in format '[BC] Int-Int-Int Int:Int:Int'
+
 
 % Default
 constant(null) -->
@@ -312,16 +310,6 @@ constant(null) -->
 
 constant(_) -->
   set_error('Syntax', 'Number, String, DATE String, TIME String, TIMESTAMP, NULL').
-
-is_date_format(Str, Position) :-
-  re_match("^\\d+-\\d+-\\d+$", Str) -> true; 
-  semantic_error('Invalid DATE String format => must be \'Int-Int-Int\'', [], Position),
-  !, fail.
-
-is_time_format(Str, Position) :-
-  re_match("^\\d+:\\d+:\\d+$", Str) -> true;
-  semantic_error('Invalid TIME String format => must be \'Int:Int:Int\'', [], Position),
-  !, fail.
 
 % cs_nat_exprs(-Ns)//
 % Comma-separated naturals (0..)
@@ -368,6 +356,26 @@ value(float(I, F, Ex)) -->
 value(str(Str)) -->
   [str(Str):_],
   !.
+
+% is_date_format(+Str, +Position)//
+% is_time_format(+Str, +Position)//
+% is_timestamp_format(+Str, +Position)//
+% If Str is not in the correct format, it raises a semantic error.
+
+is_date_format(Str, Position) :-
+  re_match("^\\d+-\\d+-\\d+$", Str) -> true; 
+  semantic_error('Invalid DATE String format => must be \'Int-Int-Int\'', [], Position),
+  !, fail.
+
+is_time_format(Str, Position) :-
+  re_match("^\\d+:\\d+:\\d+$", Str) -> true;
+  semantic_error('Invalid TIME String format => must be \'Int:Int:Int\'', [], Position),
+  !, fail.
+
+is_timestamp_format(Str, Position) :-
+  re_match("^\\d+-\\d+-\\d+ \\d+:\\d+:\\d+$", Str)  -> true;
+  semantic_error('Invalid TIME String format => must be \'Int-Int-Int Int:Int:Int\'', [], Position),
+  !, fail.
 
 % is_number(+Expr)
 % Succeed if Expr is a number
@@ -483,6 +491,85 @@ array_variable(Id) -->
   cs_nat_exprs(Index)                 # 'Array index',
   punct(')')                          # 'Closing parenthesis',
   {Id =.. [N|Index]}.
+
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % ISL (Information Schema Language) statements
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% ISLstmt ::=
+%   SHOW TABLES
+%   |
+%   SHOW VIEWS
+%   |
+%   SHOW DATABASES
+%   |
+%   DESCRIBE [TableName|ViewName]
+
+islStmt([show_tables|STs]/STs) -->
+  cmd(show)                           # 'SHOW',
+  cmd(tables)                         # 'TABLES, VIEWS or DATABASES',
+  !. 
+
+islStmt([show_views|STs]/STs) -->
+  cmd(show)                           # 'SHOW',
+  cmd(views)                          # 'TABLES, VIEWS or DATABASES',
+  !. 
+
+islStmt([show_databases|STs]/STs) -->
+  cmd(show)                           # 'SHOW',
+  cmd(databases)                      # 'TABLES, VIEWS or DATABASES',
+  !. 
+
+islStmt([describe(Name)|STs]/STs) -->
+  cmd(describe)                       # 'DESCRIBE',
+  tablename_or_viewname_colname(Name) # 'table name',
+  !. 
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % TML (Transaction Management Language) statements
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% TMLstmt ::=
+%   COMMIT [WORK]
+%   |
+%   ROLLBACK [WORK] [TO SAVEPOINT SavepointName]
+%   |
+%   SAVEPOINT SavepointName
+
+% COMMIT
+tmlStmt([commit|STs]/STs) -->
+  cmd(commit)                         # 'COMMIT',
+  optional_cmd(work),
+  !. 
+
+% ROLLBACK TO SAVEPOINT
+tmlStmt([rollback([SP])|STs]/STs) -->
+  cmd(rollback)                       # 'ROLLBACK',
+  optional_cmd(work),
+  cmd(to)                             # 'TO',
+  cmd(savepoint)                      # 'SAVEPOINT',
+  filename(SP)                        # 'double quotes id (savepoint name)',
+  !. 
+
+% ROLLBACK
+tmlStmt([rollback([])|STs]/STs) -->
+  cmd(rollback)                       # 'ROLLBACK',
+  optional_cmd(work),
+  !. 
+
+% SAVEPOINT
+tmlStmt([savepoint([SP])|STs]/STs) -->
+  cmd(savepoint)                      # 'SAVEPOINT',
+  !,
+  filename(FileName)                  # 'string (savepoint name)',
+  {atom_concat(FileName,'.ddb',SP)}.
+
+
+% filename(FileName)//
+% get file name -> quoted_id()
+filename(FileName) -->
+  [quoted_id(FileName):_Pos].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Expression parser
@@ -679,8 +766,8 @@ test :-
 
 test001 :-
   test(parser, parse, 
-    [int(10):pos(1,1),cmd(for):pos(1,1),id(i):pos(1,5),op(=):pos(1,6),int(1):pos(1,7),cmd(to):pos(1,9),id(n):pos(1,12),cmd(step):pos(1,14),int(-1):pos(1,19)],
-    [10-1:for(id(i),int(1),id(n),int(-1),true)]).
+  [int(10):pos(1,1),cmd(for):pos(1,1),id(i):pos(1,5),op(=):pos(1,6),int(1):pos(1,7),cmd(to):pos(1,9),id(n):pos(1,12),cmd(step):pos(1,14),int(-1):pos(1,19)],
+  [10-1:for(id(i),int(1),id(n),int(-1),true)]).
 
 test002 :-
   test(parser, parse,
