@@ -3,7 +3,8 @@
 
 :- module(utils,
           [ my_map_1/2,
-            my_nf_setof/3]).
+            my_nf_setof/3,
+            my_remove_duplicates/2]).
 
 
 :- use_module(des_data,
@@ -31,3 +32,15 @@ my_add_tup_arg(X,Y,T) :-
 % Non-failing setof: Return empty list if setof fails
 my_nf_setof(X,G,Xs) :-
   (setof(X,G,Xs) -> true ; Xs=[]).
+
+my_remove_duplicates([], []).
+my_remove_duplicates([Head|Tail1], [Head|Tail2]) :-
+  my_delete(Tail1, Head, Residue),
+  my_remove_duplicates(Residue, Tail2).
+
+my_delete([], _, []).
+my_delete([Head|Tail], Element, Rest) :-
+  Head==Element, !,
+  my_delete(Tail, Element, Rest).
+my_delete([Head|Tail], Element, [Head|Rest]) :-
+  my_delete(Tail, Element, Rest).

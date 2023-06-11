@@ -133,5 +133,5 @@ display_error_location(Line, Location, ColumnOrStmt) :-
   format('at Line ~w, ~w ~w', [Line, Location, ColumnOrStmt]).
 
 semantic_error(ErrorStr, Parameter, Position) :-
-  format(string(Error), ErrorStr, Parameter),
+  format(atom(Error), ErrorStr, Parameter),
   set_error('Semantic', Error, Position).

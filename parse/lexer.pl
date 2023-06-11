@@ -305,7 +305,7 @@ operator('**')  -->> "**",  !, add_col(2).
 operator('*')   -->> "*",   !, inc_col. 
 %operator('#')   -->> "#",   !, inc_col. 
 operator('-')   -->> "-",   !, inc_col.
-operator('\\')   -->> "\\",   !, inc_col.
+operator('\\')   -->> "\\", !, inc_col.
 
 comparison_operator('!=')  -->> "!=",  !, add_col(2). % inequality
 comparison_operator('=')   -->> "=",   !, inc_col.

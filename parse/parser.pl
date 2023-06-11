@@ -1,6 +1,6 @@
 :- module(parser,
-          [ lex_parse/1,
-            lex_parse/2,
+          [ lex_parse/2,
+            lex_parse/1,
             parse/2,
             expr/3,
             is_number/1 ]).
@@ -23,7 +23,8 @@
           [ lex/2 ]).
 
 :- use_module(des_data).
-
+/*:- use_module(des).  
+I want to use my_raise_exception but I don't know how this predicate functions or how to use it*/
 
 % This SWI-Prolog flag makes strings delimited by double
 % quotes to represent lists of character codes:
@@ -159,27 +160,87 @@ b_DQL(SQLst) -->
 %   |
 %   UPDATE TableName [[AS] Identifier] SET Att=Expr {,Att=Expr} [WHERE Condition]
 
+% DELETE FROM 
+dmlStmt(delete_from(Table,true)) -->
+  cmd(delete)                         # 'DELETE',
+  cmd(from)                           # 'FROM',
+  my_p_ren_tablename(Table),
+  !.
+
+% INSERT INTO Table(Columns) [VALUES(...) | selectStm]
 dmlStmt([insert_into(TableName,Colnames, Vs)|STs]/STs) -->
   cmd(insert)                         # 'INSERT',
   cmd(into)                           # 'INTO',
-  tablename_or_viewname_colname(TableName)  # 'table name',
+  tablename(TableName)                # 'table name',
+  current_position(Position),
+  punct('(')                          # 'opening parenthesis or DEFAULT',
+  column_name_list(Colnames),
+  punct(')')                          # 'closing parenthesis',
+  {(my_remove_duplicates(Colnames,Colnames) -> true ;
+  semantic_error('Column names must be different in ~w' , [Colnames], Position),
+  !, fail)},
+  {length(Colnames,L)},
+  insert_values(L,Vs),
+  !.
+
+% INSERT INTO Table [VALUES(...) | selectStm]
+dmlStmt([insert_into(TableName,Colnames, Vs)|STs]/STs) -->
+  cmd(insert)                         # 'INSERT',
+  cmd(into)                           # 'INTO',
+  tablename(TableName)                # 'table name',
   {(get_relation_arity(TableName,L) -> true ; true)},
   insert_values(L, Vs),
   {get_table_untyped_arguments(TableName,Colnames)},
   !.
 
-% tablename_or_viewname_colname(Name)//
+%column_name_list(columnList)\\
+%column_name separate with comma
+column_name_list([C]) --> 
+  untyped_column(C).
+column_name_list([C|Cs]) -->
+  untyped_column(C),
+  punct(',')                          # 'comma', 
+  !,
+  column_name_list(Cs).
+
+untyped_column(C) --> 
+  colname(C).
+
+p_ren_tablename((T,_R)) -->
+  tablename(T)                        # 'table name'.
+p_ren_tablename(T) --> 
+  ren_tablename(T).
+
+ren_tablename((T,[I|Args])) -->
+  tablename(T)                        # 'table name',
+  optional_cmd(as),
+  sql_user_identifier(I)              # 'user identifier',
+  {my_table('$des',T,A),
+    length(Args,A)}.
+
+% tablename/viewname/colname
+tablename(TableName) -->
+  sql_user_identifier(TableName).
+
+viewname(ViewName) -->
+  sql_user_identifier(ViewName).
+
+colname(ColName) -->
+  sql_user_identifier(ColName).
+
 % get table,view or col name -> quoted_id() | id() | (id())
-tablename_or_viewname_colname(Name) -->
+sql_user_identifier(Name) -->
   [quoted_id(Name):_Pos].
 
-tablename_or_viewname_colname(Name) -->
+sql_user_identifier(Name) -->
   [id(Name):_Pos].
 
-tablename_or_viewname_colname(Name) --> 
+sql_user_identifier(Name) --> 
   optional_punct('['),
   [id(Name):_Pos],
   optional_punct(']').
+
+
 
 %To obtain the arity (the number of attributes or columns) of a 
 %relation (table or view) in the database.
@@ -252,11 +313,19 @@ sql_ground_tuple(L,Cs) -->
       semantic_error('Unmatching number of values => ~w (must be ~w)' , [TL, L], Position),
       !, fail)}.
 
-cs_expressions_def([E1, E2|Es]) -->
+/*cs_expressions_def([E1, E2|Es]) -->
   expressions_def(E1),
   punct(',')                          # 'comma',
   !,
   cs_expressions_def([E2|Es]).
+cs_expressions_def([E]) -->
+  expressions_def(E).*/
+
+cs_expressions_def([E1|Es]) -->
+  expressions_def(E1),
+  punct(',')                          # 'comma',
+  !,
+  cs_expressions_def(Es).
 cs_expressions_def([E]) -->
   expressions_def(E).
 
@@ -523,7 +592,7 @@ islStmt([show_databases|STs]/STs) -->
 
 islStmt([describe(Name)|STs]/STs) -->
   cmd(describe)                       # 'DESCRIBE',
-  tablename_or_viewname_colname(Name) # 'table name',
+  tablename(Name) # 'table name',
   !. 
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -764,18 +833,30 @@ test :-
 % All test names must be of the form testXXX,
 % where XXX is a left-0-padded number.
 
+%ISLstmt
 test001 :-
-  test(parser, parse, 
-  [int(10):pos(1,1),cmd(for):pos(1,1),id(i):pos(1,5),op(=):pos(1,6),int(1):pos(1,7),cmd(to):pos(1,9),id(n):pos(1,12),cmd(step):pos(1,14),int(-1):pos(1,19)],
-  [10-1:for(id(i),int(1),id(n),int(-1),true)]).
+  test(parser, lex_parse, 'test/test020.sql', 
+  [show_tables,show_views,show_databases,describe(t)]).
 
+%TMLstmt
 test002 :-
-  test(parser, parse,
-  [int(10):pos(1,1),cmd(let):pos(1,3),id(sin):pos(1,10),op(=):pos(1,13),fn(sin/1):pos(1,7),punct('('):pos(1,13),int(1):pos(1,1),punct(')'):pos(1,13)], 
-  [10-1:let(id(sin),fn(sin(int(1))))]).
+  test(parser, lex_parse, 'test/test021.sql', 
+    [commit,commit,rollback([]),rollback([]),rollback([sp1]),rollback([sp1]),savepoint(['sp2.ddb'])]).
 
+%ISLstmt error
 test003 :-
-  test(parser, parse, [int(10):pos(1, 1), cmd(print):pos(1, 4), fn(sin/1):pos(1, 10), punct('('):pos(1, 13), int(1):pos(1, 14), punct(')'):pos(1, 15)], 
-  [10-1:print([fn(sin(int(1)))])]).
+  test(parser, lex_parse, "DESCRIBE 2",
+    failure(error('Syntax', 'table name', pos(1, 10)))).
 
+test004 :-
+  test(parser, lex_parse, "show t",
+    failure(error('Syntax', 'TABLES, VIEWS or DATABASES', pos(1, 6)))).
 
+%TMLstmt error
+test005 :-
+  test(parser, lex_parse, "ROLLBACK WORK TO point ""sp1""",
+    failure(error('Syntax', 'SAVEPOINT', pos(1, 18)))).
+
+test024 :-
+  test(parser, lex_parse, "insert into t3 values (1, '1')",
+    failure(error('Semantic', 'Unmatching number of values => 2 (must be 3)', pos(1, 23)))).

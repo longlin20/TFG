@@ -24,7 +24,9 @@ set_initial_db :-
   
 set_default_db :-
   set_flag(current_db('$des','$des')).
-  
+
+current_db('$des', '$des').
+
 current_db(Connection) :-
   current_db(Connection,_DBMS).
 
@@ -47,8 +49,6 @@ close_dbs :-
   ),
   fail.
 close_dbs.
-
-current_db('$des', '$des').
 
 % my_table(TableName,Arity) :-
 %   atom(TableName),
