@@ -2,7 +2,7 @@
 % % DML (Data Manipulation Language) statements
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-INSERT STATEMENTS
+INSERT INTO STATEMENTS
 
 % DMLstmt ::=
 %   INSERT INTO TableName[(Att {,Att})] VALUES (ExprDef {,ExprDef}) {, (ExprDef {,ExprDef})}
@@ -11,7 +11,7 @@ INSERT STATEMENTS
 %   |
 %   INSERT INTO TableName[(Att {,Att})] DQLstmt*/
 
-/*
+insert into `t1` select
 insert into t1 select
 insert into [t1] select
 insert into "t1" select
@@ -24,11 +24,11 @@ INSERT INTO  t1 VALUES (DATE '2000-060-01');
 INSERT INTO t3 VALUES (TIME '12:00:01', 2.5, 1), (DATE '2012-01-01', DEFAULT, NULL);
 INSERT INTO  t2 VALUES (TIME '12:00:01', DATE '2000-0600-01')
 INSERT INTO  t2 VALUES (TIME '12:00:01', DATE '2000-0600-01')
-INSERT INTO  T1 VALUES (TIMESTAMP '2023-06-01 13:45:30')*/
---insert into t1(a1) values (1)
---insert into t3(a3,b3,c3) values (1,2,'a')
---insert into t2(a3,b3,c3) values (1,2,'a')
---insert into t2(a3,b3,a3) values (1,2,'a')
+INSERT INTO  T1 VALUES (TIMESTAMP '2023-06-01 13:45:30')
+insert into t1(a1) values (1)
+insert into t3(a3,b3,c3) values (1,2,'a')
+insert into t2(a3,b3,c3) values (1,2,'a')
+
 
 
 /*ERROR*/
@@ -41,25 +41,32 @@ INSERT INTO  T1 VALUES (TIMESTAMP '2023-06-01 13:45:30')*/
 
 -- Semantic: Unmatching number of values => 3 (must be 2)
 --insert into t3(a2,a3) values (1,2,'a')
---
---insert into t1 values ('V1')    ('V2');
-
--- Expected closing parenthesis or comma 
---insert into t1 values(1 '2')
---insert into t3 values(1 '2')
-
---Expected comma 
---insert into t2(a3 c) values (1,'a')
 
 -- Semantic: Invalid DATE String format => must be 'Int-Int-Int'
 --INSERT INTO  t1 VALUES (DATE '2000-a-01');
 
--- Expected string
+--
+--insert into t2(a3,b3,a3) values (1,2,'a')
+
+--
+--insert into t1 values ('V1')    ('V2');
+
+-- closing parenthesis or comma 
+--insert into t1 values(1 '2')
+--insert into t3 values(1 '2')
+
+-- comma 
+--insert into t2(a3 c) values (1,'a')
+
+-- string
 --INSERT INTO  t1 VALUES (DATE 2000);
 
--- Expected VALUES 
+-- VALUES 
 --insert into t1 default v
 
 -- VALUES, select statement, or DEFAULT VALUES
 --insert into t1 default 
 --insert into t1 defa values
+
+-- closing bracket
+--insert into [t1 select

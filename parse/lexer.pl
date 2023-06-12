@@ -319,14 +319,15 @@ textual_operator('and') -->> lc("and"), not_more_char,  !, add_col(3).
 textual_operator('or')  -->> lc("or"),  not_more_char,  !, add_col(2).
 textual_operator('not') -->> lc("not"), not_more_char,  !, add_col(3).
 textual_operator('xor') -->> lc("xor"), not_more_char,  !, add_col(3).
-textual_operator('rem') -->> lc("rem"), not_more_char,  !, add_col(3).
-textual_operator('div') -->> lc("div"), not_more_char,  !, add_col(3).
+%textual_operator('rem') -->> lc("rem"), not_more_char,  !, add_col(3).
+%textual_operator('div') -->> lc("div"), not_more_char,  !, add_col(3).
 
 %punctuation quotes simple is in the last line
 punctuation('(') -->> "(",   !, inc_col.
 punctuation(')') -->> ")",   !, inc_col.
 punctuation('[') -->> "[",   !, inc_col.
 punctuation(']') -->> "]",   !, inc_col.
+punctuation('`') -->> "`", !, inc_col.
 punctuation(',') -->> ",",   !, inc_col.
 punctuation('.') -->> ".",   !, inc_col.
 punctuation(';') -->> ";",   !, inc_col.

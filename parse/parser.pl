@@ -23,8 +23,13 @@
           [ lex/2 ]).
 
 :- use_module(des_data).
-/*:- use_module(des).  
-I want to use my_raise_exception but I don't know how this predicate functions or how to use it*/
+
+/*I want to use my_raise_exception 
+but I don't know how this predicate 
+functions or how to use it*/
+%now it contain profix, infix, posfix.
+:- use_module(des).  
+
 
 % This SWI-Prolog flag makes strings delimited by double
 % quotes to represent lists of character codes:
@@ -140,9 +145,9 @@ ub_DQL([select()|STs]/STs) -->
   !.
 
 b_DQL(SQLst) -->
-  [punct('('):_]                      # 'Opening parenthesis',
+  punct('(')                          # 'Opening parenthesis',
   dqlStmt(SQLst)                      # 'todo',
-  [punct(')'):_]                      # 'Closing parenthesis'.
+  punct(')')                          # 'Closing parenthesis'.
 
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -160,11 +165,19 @@ b_DQL(SQLst) -->
 %   |
 %   UPDATE TableName [[AS] Identifier] SET Att=Expr {,Att=Expr} [WHERE Condition]
 
-% DELETE FROM 
-dmlStmt(delete_from(Table,true)) -->
+% DELETE FROM ... WHERE 
+dmlStmt([delete_from(Table,WhereCondition)|STs]/STs) -->
   cmd(delete)                         # 'DELETE',
   cmd(from)                           # 'FROM',
-  my_p_ren_tablename(Table),
+  p_ren_tablename(Table),
+  where_clause(WhereCondition),
+  !.
+
+% DELETE FROM 
+dmlStmt([delete_from(Table,true)|STs]/STs) -->
+  cmd(delete)                         # 'DELETE',
+  cmd(from)                           # 'FROM',
+  p_ren_tablename(Table),
   !.
 
 % INSERT INTO Table(Columns) [VALUES(...) | selectStm]
@@ -193,6 +206,168 @@ dmlStmt([insert_into(TableName,Colnames, Vs)|STs]/STs) -->
   {get_table_untyped_arguments(TableName,Colnames)},
   !.
 
+where_clause(WhereCondition) -->
+  cmd(where)                          # 'WHERE',
+  opening_parentheses_star(N),
+  {!},
+  where_condition(WhereCondition)     # 'WHERE condition',
+  closing_parentheses_star(N).
+where_clause(true) -->
+  [].
+
+where_condition(C) --> 
+  sql_condition(C).
+
+on_condition(C) --> 
+  sql_condition(C).
+
+sql_having_condition(C) --> 
+  sql_condition(C).
+
+sql_condition(F) -->
+  sql_condition(1200,F).
+    
+sql_condition(PP,To) -->
+  cond_factor(L), 
+  r_sql_condition(PP,0,L/To).
+sql_condition(PP,To) -->
+  punct('(')                          # 'opening parenthesis',
+  sql_condition(1200,T)               # 'Expected valid SQL condition', 
+  punct(')')                          # 'closing parenthesis',
+  !,
+  r_sql_condition(PP,0,T/To).
+sql_condition(PP,To) -->
+  {sql_operator(P,FX,SOP,OP),
+    prefix(P,FX,PR),
+    P=<PP},
+  op(SOP)                             # OP,
+  sql_condition(PR,T)                 # 'valid SQL condition', 
+  {NT=..[OP,T]},
+  r_sql_condition(PP,P,NT/To).
+
+r_sql_condition(PP,Pi,Ti/To) -->
+  {sql_operator(P,YFX,SOP,OP),
+    infix(P,YFX,PL,PR),
+    P=<PP,
+    Pi=<PL,
+    NT=..[OP,Ti,T]},
+  op(SOP)                            # OP,
+  sql_condition(PR,T), 
+  r_sql_condition(PP,P,NT/To).
+r_sql_condition(_,_,Ti/Ti) -->
+  [].
+  
+sql_operator(1100,xfy, or,'or').
+sql_operator(1050,xfy, xor,'xor').
+sql_operator(1000,xfy, and,'and').
+sql_operator( 900, fy, not,'not').
+
+cond_factor(E) -->
+  b_sql_condition(E).
+cond_factor(true) --> 
+  cmd(true).
+cond_factor(false) --> 
+  cmd(false).
+cond_factor(is_null(R)) --> 
+  sql_expression(R,_T), 
+  cmd(is), 
+  cmd(null)                           # 'NULL'.
+cond_factor(not(is_null(R))) --> 
+  sql_expression(R,_T),  
+  cmd(is), 
+  op(not)                             # 'NOT', 
+  cmd(null)                           # 'NULL'.
+cond_factor(exists(R)) -->
+  cmd(exists),
+  opening_parentheses_star(N),
+  dqlStmt([R|STs]/STs)                # 'valid SELECT statement',
+  my_DQL(R),
+  closing_parentheses_star(N).
+cond_factor(and('<='(L,C),'<='(C,R))) --> 
+  sql_expression(C,CT),
+  cmd(between)                        # 'BETWEEN',
+  sql_expression(L,LT),
+  syntax_check_same_types('BETWEEN test',CT,LT),
+  op(and)                             # 'AND',
+  sql_expression(R,RT),
+  syntax_check_same_types('BETWEEN test',LT,RT),
+  syntax_check_between(L,R).
+cond_factor(or('>'(L,C),'>'(C,R))) --> 
+  sql_expression(C,CT),
+  op(not)                             # 'NOT',
+  cmd(between)                        # 'BETWEEN',         
+  sql_expression(L,LT),
+  syntax_check_same_types('BETWEEN test',CT,LT),
+  op(and)                             # 'AND',
+  sql_expression(R,RT),
+  syntax_check_same_types('BETWEEN test',LT,RT),
+  syntax_check_between(L,R).
+cond_factor(in(L,R)) --> 
+  column_or_constant_tuple(L,A),
+  cmd(in),
+  opening_parentheses_star(N),
+  dql_or_constant_tuples(A,R),
+  closing_parentheses_star(N).
+cond_factor(not_in(L,R)) --> 
+  column_or_constant_tuple(L,A),
+  op(not)                             # 'NOT',
+  cmd(in)                             # 'IN',
+  opening_parentheses_star(N),
+  dql_or_constant_tuples(A,R),
+  closing_parentheses_star(N).
+cond_factor(F) --> 
+  sql_expression(L,LT),
+  syntax_check_expr_type(L,LT,string(_)),
+  optional_op(not,NOT),
+  cmd(like)                           # 'LIKE',
+  sql_expression(R,RT),
+  syntax_check_expr_type(R,RT,string(_)),
+  {(NOT==true -> F='$not_like'(L,R) ; F='$like'(L,R))}.
+cond_factor(F) --> 
+  sql_expression(L,LT),
+  syntax_check_expr_type(L,LT,string(_)),
+  optional_op(not,NOT),
+  cmd(like)                           # 'LIKE',
+  sql_expression(R,RT),
+  syntax_check_expr_type(R,RT,string(_)),
+  cmd(escape)                         # 'ESCAPE',
+  sql_expression(E,ET),
+  syntax_check_expr_type(E,ET,string(_)),
+  {(NOT==true -> F='$not_like'(L,R,E) ; F='$like'(L,R,E))}.
+cond_factor(C) --> 
+  sql_expression(L,LT), 
+  relop(Op)                           # 'comparison operator', 
+  sql_expression(R,RT),
+  {sql_rel_cond_factor(Op,L,R,C)},
+  syntax_check_same_types(C,LT,RT).
+my_cond_factor(true) --> 
+  {current_db(_,mysql)},
+  sql_constant(_C).
+
+b_sql_condition(SQLst) -->
+  punct('(')                          # 'opening parenthesis',
+  sql_condition(SQLst),
+  punct(')')                          # 'closing parenthesis'.
+
+relop(RO) --> 
+  set_op(RO).
+relop(RO) --> 
+  tuple_op(RO).
+
+set_op(SO) -->
+  tuple_op(TO),
+  cmd(all)                            # 'all',
+  {atom_concat(TO,'_all',SO)}.
+set_op(SO) -->
+  my_tuple_op(TO),
+  cmd(any)                            # 'any',
+  {atom_concat(TO,'_any',SO)}.
+  
+tuple_op(RO) --> 
+  {map_cond(RO,_), 
+    atom_codes(RO,SRO)},
+  [str(SRO):_].
+
 %column_name_list(columnList)\\
 %column_name separate with comma
 column_name_list([C]) --> 
@@ -206,17 +381,24 @@ column_name_list([C|Cs]) -->
 untyped_column(C) --> 
   colname(C).
 
-p_ren_tablename((T,_R)) -->
-  tablename(T)                        # 'table name'.
 p_ren_tablename(T) --> 
   ren_tablename(T).
 
-ren_tablename((T,[I|Args])) -->
+p_ren_tablename((T)) -->
+  tablename(T)                        # 'table name',
+  !.
+
+ren_tablename((T,[I])) -->
+  %current_position(Position),
   tablename(T)                        # 'table name',
   optional_cmd(as),
   sql_user_identifier(I)              # 'user identifier',
-  {my_table('$des',T,A),
-    length(Args,A)}.
+  !,
+  {my_table('$des',T,_)}.
+  % Do not check the existence of said table for now
+  /*-> true;
+  semantic_error('table ~w does not exist in the $des system' , [T], Position),
+  !, fail)}.*/
 
 % tablename/viewname/colname
 tablename(TableName) -->
@@ -228,19 +410,22 @@ viewname(ViewName) -->
 colname(ColName) -->
   sql_user_identifier(ColName).
 
-% get table,view or col name -> quoted_id() | id() | (id())
+% get table,view or col name -> quoted_id(id) | id(id) | [id(id)] | `id(id)` 
 sql_user_identifier(Name) -->
   [quoted_id(Name):_Pos].
 
-sql_user_identifier(Name) -->
-  [id(Name):_Pos].
+sql_user_identifier(Name) --> 
+  [punct('['):_],  %no punct(']') # 'opening bracket' because it's not mandatory
+  [id(Name):_Pos],
+  punct(']')                          # 'closing bracket'.
 
 sql_user_identifier(Name) --> 
-  optional_punct('['),
+  [punct('`'):_],  %no punct('`') # 'opening back quotes' because it's not mandatory
   [id(Name):_Pos],
-  optional_punct(']').
+  punct('`')                          # 'closing back quotes'.
 
-
+sql_user_identifier(Name) -->
+  [id(Name):_Pos].
 
 %To obtain the arity (the number of attributes or columns) of a 
 %relation (table or view) in the database.
@@ -268,7 +453,7 @@ insert_values(L, Ts) -->
   sql_ground_tuple_list(L,Ts).
 
 insert_values(_L, select()) -->
-  ub_DQL([select()|STs]/STs).
+  dqlStmt([select()|STs]/STs).
 
 insert_values(_,_) -->
   set_error('Syntax', 'VALUES, select statement, or DEFAULT VALUES').
@@ -313,14 +498,6 @@ sql_ground_tuple(L,Cs) -->
       semantic_error('Unmatching number of values => ~w (must be ~w)' , [TL, L], Position),
       !, fail)}.
 
-/*cs_expressions_def([E1, E2|Es]) -->
-  expressions_def(E1),
-  punct(',')                          # 'comma',
-  !,
-  cs_expressions_def([E2|Es]).
-cs_expressions_def([E]) -->
-  expressions_def(E).*/
-
 cs_expressions_def([E1|Es]) -->
   expressions_def(E1),
   punct(',')                          # 'comma',
@@ -334,6 +511,7 @@ expressions_def(default) -->
   cmd(default)                        # 'DEFAULT',
   !.
 
+%Number, String, DATE String, TIME String, TIMESTAMP, NULL
 expressions_def(E) -->
   constant(E),
   !.
@@ -378,7 +556,7 @@ constant(null) -->
   !.
 
 constant(_) -->
-  set_error('Syntax', 'Number, String, DATE String, TIME String, TIMESTAMP, NULL').
+  set_error('Syntax', 'Number, String, DATE String, TIME String, TIMESTAMP String, NULL').
 
 % cs_nat_exprs(-Ns)//
 % Comma-separated naturals (0..)
@@ -592,7 +770,7 @@ islStmt([show_databases|STs]/STs) -->
 
 islStmt([describe(Name)|STs]/STs) -->
   cmd(describe)                       # 'DESCRIBE',
-  tablename(Name) # 'table name',
+  tablename(Name)                     # 'table name',
   !. 
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -734,40 +912,6 @@ fn_args(Ar, H) -->
        Ar == 1}).
 
 
-% Operators
-% prefix(?Op, ?P1, ?P2).
-%   prefix(P, Op, P-1) :- op(P, fx, Op).
-%   prefix(P, Op, P)   :- op(P, fy, Op).
-prefix(+,   380, 380).
-prefix(-,   380, 380).
-prefix(not, 150, 150).
-
-% infix(?Op, ?P1, ?P2, ?P3).
-%   infix(P, Op, P-1, P-1)  :- op(P, xfx, Op).
-infix(=,  700, 699, 699).
-infix(>=, 700, 699, 699).
-infix(<=, 700, 699, 699).
-infix(<>, 700, 699, 699).
-infix(>,  700, 699, 699).
-infix(<,  700, 699, 699).
-
-% infix(P, Op, P-1, P)    :- op(P, xfy, Op).
-infix(^, 200, 199, 200).
-
-% infix(P, Op, P,   P-1)  :- op(P, yfx, Op).
-infix(or,  800, 800, 799).
-infix(and, 800, 800, 799).
-infix(+,   500, 500, 499).
-infix(-,   500, 500, 499).
-infix(*,   400, 400, 399).
-infix(/,   400, 400, 399).
-
-% posfix(?Op, ?P1, ?P2).
-%   posfix(P, Op, P-1) :- op(P, xf, Op).
-%   posfix(P, Op, P)   :- op(P, yf, Op).
-% Example (though unsupported in Seiko Data 2000):
-posfix(!, 280, 280).
-
 % redef(?Op)
 % Redefined operators
 redef(+).
@@ -793,6 +937,14 @@ Goal # Error -->
   Goal.
 
 
+% optional_op(-Op, true/false)//
+% Optional op
+optional_op(Op,true) -->
+  [op(Op):_],
+  !.
+optional_op(_KW,false) -->
+  [].
+
 % optional_cmd(-Cmd)//
 % Optional command
 optional_cmd(Cmd) -->
@@ -806,6 +958,28 @@ optional_punct(Punct) -->
   ([punct(Punct):_]
   -> !
   ;  []).
+
+%opening parentesis and closing parentesis
+opening_parentheses_star(N) -->
+  opening_parentheses_star(0,N).
+  
+opening_parentheses_star(N,NN) -->
+  [punct('('):_],
+  {N1 is N+1},
+  opening_parentheses_star(N1,NN).
+opening_parentheses_star(N,N) -->
+  [].
+  
+closing_parentheses_star(N) -->
+  closing_parentheses_star(0,N),
+  !. 
+  
+closing_parentheses_star(N,NN) -->
+  [punct(')'):_],
+  {N1 is N+1},
+  closing_parentheses_star(N1,NN).
+closing_parentheses_star(N,N) -->
+  [].
 
 % terminal(?Token)
 terminal(id(_)).
@@ -838,24 +1012,41 @@ test001 :-
   test(parser, lex_parse, 'test/test020.sql', 
   [show_tables,show_views,show_databases,describe(t)]).
 
-%TMLstmt
-test002 :-
-  test(parser, lex_parse, 'test/test021.sql', 
-    [commit,commit,rollback([]),rollback([]),rollback([sp1]),rollback([sp1]),savepoint(['sp2.ddb'])]).
-
 %ISLstmt error
-test003 :-
+test002 :-
   test(parser, lex_parse, "DESCRIBE 2",
     failure(error('Syntax', 'table name', pos(1, 10)))).
 
-test004 :-
+test003 :-
   test(parser, lex_parse, "show t",
     failure(error('Syntax', 'TABLES, VIEWS or DATABASES', pos(1, 6)))).
+
+%TMLstmt
+test004 :-
+  test(parser, lex_parse, 'test/test021.sql', 
+    [commit,commit,rollback([]),rollback([]),rollback([sp1]),rollback([sp1]),savepoint(['sp2.ddb'])]).
 
 %TMLstmt error
 test005 :-
   test(parser, lex_parse, "ROLLBACK WORK TO point ""sp1""",
     failure(error('Syntax', 'SAVEPOINT', pos(1, 18)))).
+
+test006 :-
+  test(parser, lex_parse, "ROLLBACK TO point ""sp1""",
+    failure(error('Syntax', 'SAVEPOINT', pos(1, 13)))).
+
+test007 :-
+  test(parser, lex_parse, "ROLLBACK WORK TO SAVEPOINT sp1",
+    failure(error('Syntax', 'double quotes id (savepoint name)', pos(1, 28)))).
+
+test008 :-
+  test(parser, lex_parse, "ROLLBACK TO SAVEPOINT 'sp1'",
+    failure(error('Syntax', 'double quotes id (savepoint name)', pos(1, 23)))).
+
+%DMLstmt --select into
+test009 :-
+  test(parser, lex_parse, 'test/test016.sql',
+    [insert_into(t1,[a1],select()),insert_into(t1,[a1],select()),insert_into(t1,[a1],select()),insert_into(t1,[a1],select()),insert_into(t1,[a1],[default]),insert_into(t3,[a3,b3,c3],[default,default,default]),insert_into(t2,[a2,b2],[[int(1),str('2')]]),insert_into(t2,[a2,b2],[[int(1),str('Ventas')],[int(2),str('Contabilidad')]]),insert_into(t3,[a3,b3,c3],[[str('1'),str(n1),str(d1)],[str('2'),str(n2),str(d2)]]),insert_into(t1,[a1],[[date('2000-060-01')]]),insert_into(t3,[a3,b3,c3],[[time('12:00:01'),frac(2,5),int(1)],[date('2012-01-01'),default,null]]),insert_into(t2,[a2,b2],[[time('12:00:01'),date('2000-0600-01')]]),insert_into(t2,[a2,b2],[[time('12:00:01'),date('2000-0600-01')]]),insert_into(t1,[a1],[[timestamp('2023-06-01 13:45:30')]]),insert_into(t1,[a1],[[int(1)]]),insert_into(t3,[a3,b3,c3],[[int(1),int(2),str(a)]]),insert_into(t2,[a3,b3,c3],[[int(1),int(2),str(a)]])]).
 
 test024 :-
   test(parser, lex_parse, "insert into t3 values (1, '1')",

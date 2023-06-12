@@ -130,7 +130,7 @@ display_error_location(last, _, last) :-
   !,
   format('at the end of the program', []).
 display_error_location(Line, Location, ColumnOrStmt) :-
-  format('at Line ~w, ~w ~w', [Line, Location, ColumnOrStmt]).
+  format('at Line ~w, ~w ~w. ', [Line, Location, ColumnOrStmt]).
 
 semantic_error(ErrorStr, Parameter, Position) :-
   format(atom(Error), ErrorStr, Parameter),

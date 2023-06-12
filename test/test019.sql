@@ -9,3 +9,8 @@ DELETE and UPTADE STATEMENTS
 %   |
 %   UPDATE TableName [[AS] Identifier] SET Att=Expr {,Att=Expr} [WHERE Condition]*/
 
+delete from t1
+delete from t1 as "newTableName";
+
+
+/*ERROR*/

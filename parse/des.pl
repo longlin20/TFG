@@ -1,3 +1,17 @@
+/*prefix, infix and posfix from des.pl*/
+:- module(des,[prefix/3, infix/4, posfix/3]).
+
+prefix(P,fx,P-1).
+prefix(P,fy,P).
+
+infix(P,xfx,P-1,P-1).
+infix(P,xfy,P-1,P).
+infix(P,yfx,P,P-1).
+
+posfix(P,xf,P-1).
+posfix(P,yf,P).
+
+
 /*
 my_raise_exception from des.pl, write_error_log from des_common.pl
 */
