@@ -145,9 +145,9 @@ ub_DQL([select()|STs]/STs) -->
   !.
 
 b_DQL(SQLst) -->
-  punct('(')                          # 'Opening parenthesis',
+  punct('(')                          # 'opening parenthesis ''(''',
   dqlStmt(SQLst)                      # 'todo',
-  punct(')')                          # 'Closing parenthesis'.
+  punct(')')                          # 'closing parenthesis '')'''.
 
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -188,7 +188,7 @@ dmlStmt([insert_into(TableName,Colnames, Vs)|STs]/STs) -->
   current_position(Position),
   punct('(')                          # 'opening parenthesis or DEFAULT',
   column_name_list(Colnames),
-  punct(')')                          # 'closing parenthesis',
+  punct(')')                          # 'closing parenthesis '')''',
   {(my_remove_duplicates(Colnames,Colnames) -> true ;
   semantic_error('Column names must be different in ~w' , [Colnames], Position),
   !, fail)},
@@ -231,9 +231,9 @@ sql_condition(PP,To) -->
   cond_factor(L), 
   r_sql_condition(PP,0,L/To).
 sql_condition(PP,To) -->
-  punct('(')                          # 'opening parenthesis',
-  sql_condition(1200,T)               # 'Expected valid SQL condition', 
-  punct(')')                          # 'closing parenthesis',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_condition(1200,T)               # 'valid SQL condition', 
+  punct(')')                          # 'closing parenthesis '')''',
   !,
   r_sql_condition(PP,0,T/To).
 sql_condition(PP,To) -->
@@ -277,11 +277,10 @@ cond_factor(not(is_null(R))) -->
   cmd(is), 
   op(not)                             # 'NOT', 
   cmd(null)                           # 'NULL'.
-cond_factor(exists(R)) -->
+cond_factor(exists(select())) -->
   cmd(exists),
   opening_parentheses_star(N),
-  dqlStmt([R|STs]/STs)                # 'valid SELECT statement',
-  my_DQL(R),
+  dqlStmt([select()|STs]/STs)         # 'valid SELECT statement',
   closing_parentheses_star(N).
 cond_factor(and('<='(L,C),'<='(C,R))) --> 
   sql_expression(C,CT),
@@ -340,14 +339,14 @@ cond_factor(C) -->
   sql_expression(R,RT),
   {sql_rel_cond_factor(Op,L,R,C)},
   syntax_check_same_types(C,LT,RT).
-my_cond_factor(true) --> 
+cond_factor(true) --> 
   {current_db(_,mysql)},
   sql_constant(_C).
 
 b_sql_condition(SQLst) -->
-  punct('(')                          # 'opening parenthesis',
+  punct('(')                          # 'opening parenthesis ''(''',
   sql_condition(SQLst),
-  punct(')')                          # 'closing parenthesis'.
+  punct(')')                          # 'closing parenthesis '')'''.
 
 relop(RO) --> 
   set_op(RO).
@@ -359,7 +358,7 @@ set_op(SO) -->
   cmd(all)                            # 'all',
   {atom_concat(TO,'_all',SO)}.
 set_op(SO) -->
-  my_tuple_op(TO),
+  tuple_op(TO),
   cmd(any)                            # 'any',
   {atom_concat(TO,'_any',SO)}.
   
@@ -368,6 +367,300 @@ tuple_op(RO) -->
     atom_codes(RO,SRO)},
   [str(SRO):_].
 
+syntax_check_same_types(_E,_LT,_RT) -->
+  {type_casting(on),
+    !}.
+syntax_check_same_types(E,LT,RT) -->
+  {nonvar(LT),
+   nonvar(RT),
+   !},
+  push_syntax_error(['Expected same types in ','$exec'(write_sql_cond(E,0,'$des'))],Old),
+  {LT=RT}.
+syntax_check_same_types(_E,_LT,_RT) -->
+  [].
+
+syntax_check_between(cte(CteL,TypeL),cte(CteR,TypeR)) -->
+  {!,
+    (compute_comparison_primitive(CteL=<CteR,CteL=<CteR)
+    ->
+      true
+    ;
+    my_raise_exception(generic,syntax(['First constant in BETWEEN (','$exec'(write_expr(cte(CteL,TypeL))), ') must be less than or equal to the second one (','$exec'(write_expr(cte(CteR,TypeR))),')']),[]))
+  }.
+syntax_check_between(_L,_R) -->
+  [].
+
+syntax_check_expr_type(L,LT,ET) -->
+  {nonvar(LT),
+    nonvar(ET),
+    !},
+  {internal_typename_to_user_typename(ET,UET)},
+  push_syntax_error(['Expected ',UET,' type in ','$exec'(write_expr(L))],Old),
+  {LT=ET},
+  pop_syntax_error(Old).
+syntax_check_expr_type(_L,_LT,_ET) -->
+  [].
+
+column_or_constant_tuple(Cs,A) --> 
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_proj_expression_sequence(Cs),
+  punct(')')                          # 'closing parenthesis '')''',
+  {length(Cs,A)}.
+column_or_constant_tuple([C],1) --> 
+  sql_proj_expression(C,_AS).
+
+sql_proj_expression_sequence([C,C2|Cs]) -->
+  sql_proj_expression(C,_),
+  punct(',')                          # 'comma',
+  {!}, % 23-01-2021
+  sql_proj_expression_sequence([C2|Cs]).
+sql_proj_expression_sequence([C]) -->
+  sql_proj_expression(C,_).
+  
+sql_proj_expression(expr(E,AS,Type),AS) -->
+  sql_expression(E,Type).
+
+dql_or_constant_tuples(_A,R) -->
+  dqlStmt(R).
+dql_or_constant_tuples(A,R) -->
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_ground_tuple_list(A,Ts),
+  punct(')')                          # 'closing parenthesis '')''',
+  {in_tuples_to_DQL(Ts,R)}.
+dql_or_constant_tuples(_,R) -->
+  my_sql_ground_tuple(_,Cs),
+  {my_list_to_list_of_lists(Cs,L),
+    in_tuples_to_DQL(L,R)}.
+dql_or_constant_tuples(1,R) -->
+  sql_constant(C),
+  {in_tuples_to_DQL([[C]],R)}.
+
+in_tuples_to_DQL([Cs],(select(all,top(all),no_offset,Es,[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_)) :-
+  args_to_exprs(Cs,Es).
+in_tuples_to_DQL([C1,C2|Cs],(union(all,SQL1,SQL2),_)) :-
+  in_tuples_to_DQL([C1],SQL1),
+  in_tuples_to_DQL([C2|Cs],SQL2).
+  
+args_to_exprs([],[]).
+args_to_exprs([C|Cs],[expr(C,_,_)|Es]) :-
+  args_to_exprs(Cs,Es).
+
+sql_expression(E,T) -->
+  {current_db(_,postgresql)},
+  sql_expression(1200,E,T),
+  punct('::')                         # 'double colon',
+  sql_type(_).
+sql_expression(E,T) -->
+  sql_expression(1200,E,T)            # 'valid expression'.
+
+sql_expression(PP,Lo,To) -->
+  sql_factor(L,T), 
+  r_sql_expression(PP,0,L/Lo,T/To).
+sql_expression(PP,Lo,To) -->
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_expression(1200,L,T), 
+  punct(')')                          # 'closing parenthesis '')''',
+  !, % WARNING
+  r_sql_expression(PP,0,L/Lo,T/To).
+sql_expression(PP,Lo,To) -->
+  {my_operator(P,FX,[T,Ta],SOP,OP),
+    prefix(P,FX,PR),
+    P=<PP},
+    [str(SOP):_],
+  sql_expression(PR,L,Ta), 
+  {NL=..[OP,L]},
+  r_sql_expression(PP,P,NL/Lo,T/To).
+  
+r_sql_expression(PP,Pi,Li/Lo,Ti/To) -->
+  {my_operator(P,YFX,[T,Ti,RT],SOP,OP),
+    infix(P,YFX,PL,PR),
+    P=<PP,
+    Pi=<PL,
+    to_uppercase_char_list(SOP,CSOP)
+  },
+  op(SOP)                             # SOP,
+%  {OP=='-' -> deb ; true},
+  sql_expression(PR,L,RT), 
+  {NL=..[OP,Li,L]}, 
+  r_sql_expression(PP,P,NL/Lo,T/To).
+r_sql_expression(_,_,Li/Li,Ti/Ti) -->
+  [].
+
+sql_factor(E,T) -->
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_expression(E,T),
+  punct(')')                          # 'closing parenthesis '')''',
+  {!}. % WARNING: This whole clause is only for improving parsing performance
+sql_factor(E,_) --> % :::WARNING: Add type info
+  my_DQL(E),
+  !.
+sql_factor(Aggr,T) -->
+  sql_special_aggregate_function(Aggr,T),
+  !.  % WARNING: This cut is only for improving parsing performance
+sql_factor(FAs,T) --> 
+  {%freeze(Arity,Arity>0),
+    my_function(SF,F,Arity,[T|Ts]),
+    Arity>0},
+  fn(USF)                             # USF,
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_function_arguments(Arity,As,Ts),
+  punct(')')                          # 'closing parenthesis '')''',
+  { FAs=..[F|As]}.
+sql_factor(Function,number(_)) -->
+  cmd(extract)                        # 'EXTRACT',
+  punct('(')                          # 'opening parenthesis ''(''',
+  extract_field(Field)                # 'valid datetime field (year, month, day, hour, minute, second)',
+  cmd(from)                           # 'FROM',
+  sql_expression(C,datetime(_))       # 'valid datetime expression',  
+  punct(')')                          # 'closing parenthesis '')''',
+  {Function=..[Field,C],
+    !}.
+sql_factor(cast(Factor,Type),Type) -->
+  fn(cast)                            # 'CAST',
+  punct('(')                          # 'opening parenthesis ''(''',
+  my_sql_factor(Factor,_),
+  push_syntax_error(['Expected AS'],Old2),
+  cmd(as)                             # 'AS',
+  sql_type(Type)                      # 'valid type name',  
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(coalesce(ExprSeq),_Type) -->
+  fn(coalesce)                        # 'COALESCE',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_expr_sequence(ExprSeq),
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(greatest(ExprSeq),_Type) -->
+  fn(greatest)                        # 'GREATEST',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_expr_sequence(ExprSeq),
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(least(ExprSeq),_Type) -->
+  fn(least)                           # 'LEAST',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_expr_sequence(ExprSeq),
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(iif(Cond,Expr1,Expr2),_Type) -->
+  fn(iif)                             # 'IIF',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_condition(Cond)                 # 'valid condition',
+  punct(',')                          # 'comma',
+  sql_expression(Expr1,_T1)           # 'valid expression', 
+  punct(',')                          # 'comma',
+  sql_expression(Expr2,_T2)           # 'valid expression', 
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(case(CondValList,Default),Type) -->
+  cmd(case)                           # 'CASE',
+  sql_case2_when_thens(CondValList),
+  sql_case_else_end(Default,Type).
+sql_factor(case(Expr,ExprValList,Default),Type) -->
+  cmd(case)                           # 'CASE',
+  sql_expression(Expr,_T)             # 'expression', 
+  sql_case3_when_thens(ExprValList),
+  sql_case_else_end(Default,Type).
+sql_factor(cte(C,T),T) -->
+  sql_constant(cte(C,T)).
+sql_factor(C,_) -->
+  my_column(C).
+sql_factor(F,T) --> 
+  {my_function(SF,F,Type,0,[T]),
+    Type\==aggregate, % 0-arity aggregate functions from Datalog are not allowed in SQL
+    },
+  fn(SF)                              # SF,
+  optional_parentheses.
+
+% Types
+% char(n)
+sql_type(string(char(N))) -->
+  sql_character_type_id,
+  punct('(')                          # 'opening parenthesis ''(''',
+  nat_expression(N)                   # 'a positive integer',
+  punct(')')                          # 'closing parenthesis '')'''.
+% char  
+sql_type(string(char(1))) -->
+  sql_character_type_id.
+% varchar(n)
+sql_type(string(varchar(N))) -->
+  sql_varchar_type_id,
+  punct('(')                          # 'opening parenthesis ''(''',
+  nat_expression(N)                   # 'a positive integer',
+  punct(')')                          # 'closing parenthesis '')'''.
+
+sql_type(string(varchar)) -->
+  cmd(varchar)                        # 'VARCHAR'. 
+sql_type(string(varchar)) -->
+  cmd(string)                         # 'STRING'.
+sql_type(string(varchar)) -->
+  cmd(text)                           # 'TEXT'. 
+
+% integer
+sql_type(number(integer)) -->
+  sql_integer_type_id,
+  optional_integer_range(_).
+sql_type(number(integer)) -->
+  sql_numeric_type_id,
+  optional_integer_range(_).
+% real and float
+sql_type(number(float)) -->
+  cmd(float)                          # 'FLOAT', 
+  punct('(')                          # 'opening parenthesis ''(''',
+  nat_expression(_Int)                # 'a positive integer',
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_type(number(float)) -->
+  sql_float_type_id.
+sql_type(number(float)) -->
+  sql_numeric_type_id,
+  punct('(')                          # 'opening parenthesis ''(''',
+  nat_expression(_Int)                # 'a positive integer',
+  punct(',')                          # 'comma',
+  nat_expression(_Frac)               # 'a positive integer',
+  punct(')')                          # 'closing parenthesis '')'''.
+
+sql_type(datetime(datetime)) -->
+  cmd(datetime)                       # 'DATETIME'.
+sql_type(datetime(datetime)) -->
+  cmd(timestamp)                      # 'TIMESTAMP'.
+sql_type(datetime(date)) -->
+  cmd(date)                           # 'DATE'.
+sql_type(datetime(time)) -->
+  cmd(time)                           # 'TIME'.
+
+sql_float_type_id -->
+  cmd(real)                           # 'REAL'.
+sql_float_type_id -->
+  cmd(float)                          # 'FLOAT'.
+  
+sql_varchar_type_id -->
+  cmd(varchar2)                       # 'VARCHAR2'.
+sql_varchar_type_id -->
+  cmd(varchar)                        # 'VARCHAR'.
+sql_varchar_type_id -->
+  cmd(text)                           # 'text'.
+  
+sql_character_type_id -->
+  cmd(character)                      # 'CHARACTER'.
+sql_character_type_id -->
+  cmd(char)                           # 'CHAR'.
+  
+sql_integer_type_id -->
+  cmd(integer)                        # 'INTEGER'.
+sql_integer_type_id -->
+  cmd(int)                            # 'INT'.
+sql_integer_type_id -->
+  cmd(smallint)                       # 'SMALLINT'.
+  
+sql_numeric_type_id -->
+  cmd(number)                         # 'NUMBER'.
+sql_numeric_type_id -->
+  cmd(numeric)                        # 'NUMERIC'.
+sql_numeric_type_id -->
+  cmd(decimal)                        # 'DECIMAL'.
+  
+optional_integer_range(R) -->
+  punct('(')                          # 'opening parenthesis ''(''',
+  nat_expression(R)                   # 'a positive integer',
+  punct(')')                          # 'closing parenthesis '')'''.
+optional_integer_range(_R) -->
+  [].
+  
 %column_name_list(columnList)\\
 %column_name separate with comma
 column_name_list([C]) --> 
@@ -415,12 +708,12 @@ sql_user_identifier(Name) -->
   [quoted_id(Name):_Pos].
 
 sql_user_identifier(Name) --> 
-  [punct('['):_],  %no punct(']') # 'opening bracket' because it's not mandatory
+  [punct('['):_],  %no "punct(']') # 'opening bracket'" because it's not mandatory
   [id(Name):_Pos],
   punct(']')                          # 'closing bracket'.
 
 sql_user_identifier(Name) --> 
-  [punct('`'):_],  %no punct('`') # 'opening back quotes' because it's not mandatory
+  [punct('`'):_],  %no "punct('`') # 'opening back quotes'" because it's not mandatory
   [id(Name):_Pos],
   punct('`')                          # 'closing back quotes'.
 
@@ -561,34 +854,34 @@ constant(_) -->
 % cs_nat_exprs(-Ns)//
 % Comma-separated naturals (0..)
 cs_nat_exprs([N1, N2|Ns]) -->
-  nat_expression(N1)                  # 'Natural expression',
+  nat_expression(N1)                  # 'natural expression',
   punct(',')                          # 'comma',
   !,
   cs_nat_exprs([N2|Ns]).
 cs_nat_exprs([N]) -->
-  nat_expression(N)                   # 'Natural expression'.
+  nat_expression(N)                   # 'natural expression'.
 
 
 % cs_variables(-Vs)//
 % Comma-separated atomic variables
 cs_variables([id(V1), V2|Vs]) -->
-  variable(V1)                        # 'Variable',
-  punct(',')                          # 'Comma',
+  variable(V1)                        # 'variable',
+  punct(',')                          # 'comma',
   !,
   cs_variables([V2|Vs]).
 cs_variables([id(V)]) -->
-  variable(V)                         # 'Variable'.
+  variable(V)                         # 'variable'.
 
 
 % cs_values(-Vs)//
 % Comma-separated numbers and strings
 cs_values([V1, V2|Vs]) -->
-  value(V1)                           # 'Value (number or string)',
-  punct(',')                          # 'Comma',
+  value(V1)                           # 'value (number or string)',
+  punct(',')                          # 'comma',
   !,
   cs_values([V2|Vs]).
 cs_values([V]) -->
-  value(V)                            # 'Value (number or string)'.
+  value(V)                            # 'value (number or string)'.
 
 % value(-Value)//
 value(int(I)) -->
@@ -958,6 +1251,12 @@ optional_punct(Punct) -->
   ([punct(Punct):_]
   -> !
   ;  []).
+
+optional_parentheses -->
+  [punct('('):_],
+  punct(')')                          # 'closing parenthesis '')'''.
+optional_parentheses -->
+  [].  
 
 %opening parentesis and closing parentesis
 opening_parentheses_star(N) -->

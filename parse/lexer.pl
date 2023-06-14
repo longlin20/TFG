@@ -327,10 +327,11 @@ punctuation('(') -->> "(",   !, inc_col.
 punctuation(')') -->> ")",   !, inc_col.
 punctuation('[') -->> "[",   !, inc_col.
 punctuation(']') -->> "]",   !, inc_col.
-punctuation('`') -->> "`", !, inc_col.
+punctuation('`') -->> "`",   !, inc_col.
 punctuation(',') -->> ",",   !, inc_col.
 punctuation('.') -->> ".",   !, inc_col.
 punctuation(';') -->> ";",   !, inc_col.
+punctuation('::') -->> "::", !, add_col(2).
 punctuation(':') -->> ":",   !, inc_col.
 punctuation('"') -->> """",  !, inc_col.
 punctuation('nl') -->> "\n", !, inc_line.
@@ -356,7 +357,8 @@ command('constraints')                      -->> lc("constraints"),             
 command('constraint')                       -->> lc("constraint"),                       not_more_char,  !,  add_col(10).       
 command('create')                           -->> lc("create"),                           not_more_char,  !,  add_col(6).    
 command('databases')                        -->> lc("databases"),                        not_more_char,  !,  add_col(9).                   
-command('database')                         -->> lc("database"),                         not_more_char,  !,  add_col(8).                     
+command('database')                         -->> lc("database"),                         not_more_char,  !,  add_col(8).    
+command('datetime')                         -->> lc("datetime"),                         not_more_char,  !,  add_col(8).                  
 command('date')                             -->> lc("date"),                             not_more_char,  !,  add_col(4).       
 command('decimal')                          -->> lc("decimal"),                          not_more_char,  !,  add_col(7).           
 command('default')                          -->> lc("default"),                          not_more_char,  !,  add_col(7).       
@@ -372,7 +374,8 @@ command('escape')                           -->> lc("escape"),                  
 command('except')                           -->> lc("except"),                           not_more_char,  !,  add_col(6).             
 command('exists')                           -->> lc("exists"),                           not_more_char,  !,  add_col(6).                 
 command('false')                            -->> lc("false"),                            not_more_char,  !,  add_col(5).       
-command('fetch')                            -->> lc("fetch"),                            not_more_char,  !,  add_col(5).           
+command('fetch')                            -->> lc("fetch"),                            not_more_char,  !,  add_col(5).    
+command('float')                            -->> lc("float"),                            not_more_char,  !,  add_col(5).          
 command('foreign')                          -->> lc("foreign"),                          not_more_char,  !,  add_col(7).            
 command('from')                             -->> lc("from"),                             not_more_char,  !,  add_col(4).       
 command('full')                             -->> lc("full"),                             not_more_char,  !,  add_col(4).       
@@ -391,7 +394,8 @@ command('join')                             -->> lc("join"),                    
 command('like')                             -->> lc("like"),                             not_more_char,  !,  add_col(4).            
 command('natural')                          -->> lc("natural"),                          not_more_char,  !,  add_col(7).           
 command('no')                               -->> lc("no"),                               not_more_char,  !,  add_col(2).       
-command('null')                             -->> lc("null"),                             not_more_char,  !,  add_col(4).       
+command('null')                             -->> lc("null"),                             not_more_char,  !,  add_col(4).  
+command('number')                           -->> lc("number"),                           not_more_char,  !,  add_col(6).      
 command('numeric')                          -->> lc("numeric"),                          not_more_char,  !,  add_col(7).       
 command('offset')                           -->> lc("offset"),                           not_more_char,  !,  add_col(6).       
 command('only')                             -->> lc("only"),                             not_more_char,  !,  add_col(4).       
@@ -412,8 +416,10 @@ command('set')                              -->> lc("set"),                     
 command('show')                             -->> lc("show"),                             not_more_char,  !,  add_col(4).        
 command('smallint')                         -->> lc("smallint"),                         not_more_char,  !,  add_col(8).       
 command('some')                             -->> lc("some"),                             not_more_char,  !,  add_col(4).
+command('string')                           -->> lc("string"),                           not_more_char,  !,  add_col(6).
 command('tables')                           -->> lc("tables"),                           not_more_char,  !,  add_col(6).              
-command('table')                            -->> lc("table"),                            not_more_char,  !,  add_col(5).       
+command('table')                            -->> lc("table"),                            not_more_char,  !,  add_col(5).    
+command('text')                             -->> lc("text"),                             not_more_char,  !,  add_col(4).          
 command('then')                             -->> lc("then"),                             not_more_char,  !,  add_col(4).       
 command('timestamp')                        -->> lc("timestamp"),                        not_more_char,  !,  add_col(9).       
 command('time')                             -->> lc("time"),                             not_more_char,  !,  add_col(4).      

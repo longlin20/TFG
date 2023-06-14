@@ -1,5 +1,6 @@
 :- module(des_data,
           [ current_db/1,
+          current_db/2,
           my_table/3,
           my_attribute/5]).
 

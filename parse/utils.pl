@@ -4,7 +4,8 @@
 :- module(utils,
           [ my_map_1/2,
             my_nf_setof/3,
-            my_remove_duplicates/2]).
+            my_remove_duplicates/2,
+            my_list_to_list_of_lists/2]).
 
 
 :- use_module(des_data,
@@ -44,3 +45,8 @@ my_delete([Head|Tail], Element, Rest) :-
   my_delete(Tail, Element, Rest).
 my_delete([Head|Tail], Element, [Head|Rest]) :-
   my_delete(Tail, Element, Rest).
+
+
+my_list_to_list_of_lists([],[]).
+my_list_to_list_of_lists([A|As],[[A]|Bs]) :-
+  my_list_to_list_of_lists(As,Bs).
