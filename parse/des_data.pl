@@ -98,8 +98,8 @@ my_attribute('$des', 2, t3, b3, number(integer)).
 my_attribute('$des', 3, t3, c3, number(integer)).
 
 my_attribute(A, B, C, D, E) :-
-        opened_db(A),
-        A\=='$des',
-        my_odbc_get_colnames(A, C, F),
-        my_nth1_member(D, B, F),
-        my_odbc_get_type(A, C, D, E).
+  opened_db(A),
+  A\=='$des',
+  my_odbc_get_colnames(A, C, F),
+  my_nth1_member(D, B, F),
+  my_odbc_get_type(A, C, D, E).

@@ -39,7 +39,7 @@
             reset_error/0,
             process_error/0,
             error/3,
-            semantic_error/3 ]).
+            set_error_with_parameter/4 ]).
 
 :- use_module(misc,
           [ current_position/3]).
@@ -132,6 +132,6 @@ display_error_location(last, _, last) :-
 display_error_location(Line, Location, ColumnOrStmt) :-
   format('at Line ~w, ~w ~w. ', [Line, Location, ColumnOrStmt]).
 
-semantic_error(ErrorStr, Parameter, Position) :-
+set_error_with_parameter(Class, ErrorStr, Parameter, Position) :-
   format(atom(Error), ErrorStr, Parameter),
-  set_error('Semantic', Error, Position).
+  set_error(Class, Error, Position).

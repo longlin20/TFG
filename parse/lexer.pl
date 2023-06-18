@@ -344,7 +344,8 @@ command('ascending')                        -->> lc("ascending"),               
 command('asc')                              -->> lc("asc"),                              not_more_char,  !,  add_col(3).       
 command('assume')                           -->> lc("assume"),                           not_more_char,  !,  add_col(6).      
 command('as')                               -->> lc("as"),                               not_more_char,  !,  add_col(2).                  
-command('between')                          -->> lc("between"),                          not_more_char,  !,  add_col(7).             
+command('between')                          -->> lc("between"),                          not_more_char,  !,  add_col(7).
+command('bc')                               -->> lc("bc"),                               not_more_char,  !,  add_col(2).   %for date string             
 command('by')                               -->> lc("by"),                               not_more_char,  !,  add_col(2).   
 command('cascade')                          -->> lc("cascade"),                          not_more_char,  !,  add_col(7).                         
 command('case')                             -->> lc("case"),                             not_more_char,  !,  add_col(4).            

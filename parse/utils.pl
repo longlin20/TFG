@@ -7,9 +7,13 @@
             my_remove_duplicates/2,
             my_list_to_list_of_lists/2]).
 
+:- use_module(parser).
 
 :- use_module(des_data,
-          [my_attribute/5]).
+          [ my_attribute/5]).
+
+:- use_module(error_,
+          [ set_error_with_parameter/4]).
 
 % Map to exactly one argument (that can be a list)
 my_map_1(_X,[]).
