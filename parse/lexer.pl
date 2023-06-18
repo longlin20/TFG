@@ -401,7 +401,8 @@ command('numeric')                          -->> lc("numeric"),                 
 command('offset')                           -->> lc("offset"),                           not_more_char,  !,  add_col(6).       
 command('only')                             -->> lc("only"),                             not_more_char,  !,  add_col(4).       
 command('on')                               -->> lc("on"),                               not_more_char,  !,  add_col(2).       
-command('order')                            -->> lc("order"),                            not_more_char,  !,  add_col(5).       
+command('order')                            -->> lc("order"),                            not_more_char,  !,  add_col(5).
+command('or')                               -->> lc("or"),                               not_more_char,  !,  add_col(2).              
 command('outer')                            -->> lc("outer"),                            not_more_char,  !,  add_col(5).                
 command('primary')                          -->> lc("primary"),                          not_more_char,  !,  add_col(7).       
 command('real')                             -->> lc("real"),                             not_more_char,  !,  add_col(4).       

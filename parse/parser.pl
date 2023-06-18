@@ -97,6 +97,13 @@ filter_tokens([H|Filtered], Rest) -->
 % statements(-STs1/STs)//
 % statements ::=
 %   DDLstmt[;] | DMLstmt[;] | DQLstmt[;] | ISLstmt[;] | TMLstmt[;]
+
+statements(STs1/STs) -->
+  ddlStmt(STs1/STs2),
+  optional_punct(';'),
+  !,
+  parse(STs2/STs).
+
 statements(STs1/STs) -->
   dmlStmt(STs1/STs2),
   optional_punct(';'),
@@ -124,17 +131,180 @@ statements(STs1/STs) -->
 statements(_) -->
   set_error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)').
 
-/*statements(STs1/STs) -->
-  ddlStmt(STs1/STs2),
-  optional_punct(';'),
-  !,
-  parse(STs2/STs).*/
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % DDL (Data Definition Language) statements
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% DDLstmt ::=
+%   CREATE [OR REPLACE] TABLE CompleteConstrainedSchema
+%   |
+%   CREATE [OR REPLACE] TABLE TableName [(] LIKE TableName [)]
+%   |
+%   CREATE [OR REPLACE] TABLE TableName [(] AS DQLstmt [)]
+%   |
+%   CREATE [OR REPLACE] VIEW Schema AS DQLstmt
+%   |
+%   CREATE DATABASE DatabaseName   % Unsupported up to now
+%   |
+%   ALTER TABLE TableName [ADD|DROP] | [[COLUMN] Att | CONSTRAINT [ConstraintName] TableConstraint] 
+%   |
+%   ALTER TABLE TableName ALTER [COLUMN] Att [AttDefinition | SET [DATA] TYPE Type]
+%   |
+%   RENAME TABLE TableName TO TableName
+%   |
+%   RENAME VIEW ViewName TO ViewName
+%   |
+%   DROP TABLE DropTableClauses TableName{,TableName} DropTableClauses % Extended syntax following MySQL, SQL Server and others
+%   |
+%   DROP VIEW DropViewClauses ViewName DropViewClauses
+%   |
+%   DROP DATABASE [DatabaseName]
+%   |
+%   CompleteSchema := DQLstmt                    % Addition to support HR-SQL syntax 
+
+% DDL Statements
+% CREATE TABLE
+ddlStmt([CRTSchema|STs]/STs) -->
+  create_or_replace(CR),
+  cmd(table)                          # 'TABLE or VIEW',
+  complete_constrained_typed_schema(Schema,Ctrs) # 'typed schema',
+  syntax_check_redef(Schema),
+  {atom_concat(CR,'_table',CRT),
+  CRTSchema=..[CRT,Schema,Ctrs]},
+  
+  
+  /*opening_parentheses_star(N),
+  cmd(as)                             # 'AS',
+  dqlStmt((LSQLst,Schema))            # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
+  closing_parentheses_star(N),
+  {atom_concat(CR,'_table_as',CRT),
+   CRTSchema=..[CRT,(LSQLst,_AS),Schema]},
+  !.*/
+
+create_or_replace(create_or_replace) -->
+  cmd(create)                         # 'CREATE',
+  cmd(or)                             # 'OR REPLACE',
+  cmd(replace)                        # 'REPLACE',
+  !.
+
+create_or_replace(create) -->
+  cmd(create)                         # 'CREATE',
+  !.
+
+complete_constrained_typed_schema(Schema,Ctrs) -->
+  sql_user_identifier(Name),
+  punct('(')                          # 'opening parenthesis ''(''',
+  constrained_typed_columns(Cs,CCtrs),
+  optional_table_constraints(TCtrs),
+  punct(')')                          # 'closing parenthesis '')''',
+  {Schema =.. [Name|Cs],
+    append(CCtrs,TCtrs,Ctrs)}.
+
+constrained_typed_columns([C:T],Ctrs) --> 
+  constrained_typed_column(C:T,Ctrs).
+constrained_typed_columns([C:T|CTs],Ctrs) -->
+  constrained_typed_column(C:T,CCtrs),
+  punct(',')                          # 'comma',
+  constrained_typed_columns(CTs,RCtrs),
+  {append(CCtrs,RCtrs,Ctrs)}.
+
+constrained_typed_column(C:T,Ctrs) --> 
+  typed_column(C:T),
+  column_constraint_definitions(C,Ctrs) # 'column constraints'.
+my_constrained_typed_column(C:T,[true]) --> 
+  typed_column(C:T).
+
+typed_column(C:T) -->
+  sql_user_identifier(C),
+  sql_type(T)                         # 'type'.
+  
+column_constraint_definitions(C,Ctrs) -->
+  optional_constraint_name(_CtrName),
+  column_constraint(C,Ctr),
+  {Ctr==true -> Ctrs=[] ; Ctrs=[Ctr]}. % Some "constraints" do not constrain, as NULL.
+column_constraint_definitions(C,[Ctr|Ctrs]) -->
+  optional_constraint_name(_CtrName),
+  column_constraint(C,Ctr),
+  column_constraint_definitions(C,Ctrs).
+
+optional_constraint_name(CtrName) -->
+  cmd(constraint)                     # 'CONSTRAINT',
+  sql_user_identifier(CtrName).
+optional_constraint_name('$void') -->
+  [].
+
+%HERE
+/* 
+my_column_constraint(C,not_nullables([C])) -->
+  my_kw("NOT"),
+  push_syntax_error(['Expected NULL'],Old),
+  my_sql_blanks,
+  my_kw("NULL"),
+  pop_syntax_error(Old).
+my_column_constraint(_C,true) -->
+  my_kw("NULL").
+my_column_constraint(C,primary_key([C])) -->
+  my_kw("PRIMARY"),
+  push_syntax_error(['Expected KEY'],Old),
+  my_sql_blanks,
+  my_kw("KEY"),
+  pop_syntax_error(Old).
+my_column_constraint(C,candidate_key([C])) -->
+  my_kw("UNIQUE").
+my_column_constraint(C,foreign_key([C],TableName,[TC])) -->
+  my_kw("REFERENCES"),
+  my_referenced_column(C,TableName,TC),
+  my_optional_referential_triggered_action(_Rule).
+my_column_constraint(C,default(C,Expression,Type)) -->
+  my_kw("DEFAULT"),
+  push_syntax_error(['Expected expression'],Old),
+  my_sql_blanks,
+  my_sql_expression(Expression,Type), 
+  pop_syntax_error(Old).
+my_column_constraint(_C,CheckCtr) -->
+  my_kw("CHECK"),
+  push_syntax_error(['Invalid check constraint'],Old),
+  my_opening_parentheses_star(N),
+  my_optional_sql_blanks(N),
+  my_check_constraint(CheckCtr),
+  my_closing_parentheses_star(N),
+  pop_syntax_error(Old).
+my_column_constraint(C,candidate_key([C])) -->
+  my_kw("CANDIDATE"),
+  push_syntax_error(['Expected KEY'],Old),
+  my_sql_blanks,
+  my_kw("KEY"),
+  pop_syntax_error(Old).
+my_column_constraint(C,fd([Att],[C])) -->
+  my_kw("DETERMINED"),
+  push_syntax_error(['Expected BY'],Old1),
+  my_sql_blanks,
+  my_kw("BY"),
+  pop_syntax_error(Old1),
+  my_sql_blanks,
+  push_syntax_error(['Expected column name'],Old2),
+  my_untyped_column(Att),
+  pop_syntax_error(Old2).*/
+
+/*
+create_view_schema(Schema) -->
+  complete_untyped_schema(Schema),
+  !.
+create_view_schema(Name) -->
+  sql_user_identifier(Name).
+
+complete_untyped_schema(Schema) -->
+  sql_user_identifier(Name),
+  punct('(')                          # 'opening parenthesis ''(''',
+  my_untyped_columns(Cs),
+  punct(')')                          # 'closing parenthesis '')''',
+  {Schema =.. [Name|Cs]}.
+*/
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % % DQL (Data Query Language) statements
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% dqlStmt(-STs1/STs)//
 dqlStmt([STs1|STs]/STs) --> 
   b_DQL([STs1|STs]/STs)               # 'todo',
   !.
@@ -167,15 +337,6 @@ b_DQL(SQLst) -->
 %   DELETE FROM TableName [[AS] Identifier] [WHERE Condition]
 %   |
 %   UPDATE TableName [[AS] Identifier] SET Att=Expr {,Att=Expr} [WHERE Condition]
-
-% UPDATE ... SET ... [WHERE ]
-dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
-  cmd(update)                         # 'UPDATE',
-  p_ren_tablename(Table),
-  cmd(set)                            # 'SET',
-  update_assignments(Assignments)     # 'sequence of column assignments Col=Expr',
-  where_clause(WhereCondition),
-  !.
 
 % INSERT INTO Table(Columns) [VALUES(...) | selectStm]
 dmlStmt([insert_into(TableName,Colnames, Vs)|STs]/STs) -->
@@ -211,6 +372,15 @@ dmlStmt([delete_from(Table,WhereCondition)|STs]/STs) -->
   where_clause(WhereCondition),
   !.
 
+% UPDATE ... SET ... [WHERE ]
+dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
+  cmd(update)                         # 'UPDATE',
+  p_ren_tablename(Table),
+  cmd(set)                            # 'SET',
+  update_assignments(Assignments)     # 'sequence of column assignments Col=Expr',
+  where_clause(WhereCondition),
+  !.
+
 update_assignments([Column,Expression]) -->
   update_assignment(Column,Expression).
 update_assignments([Column,Expression|Assignments]) -->
@@ -226,7 +396,6 @@ update_assignment(expr(ColumnName,none,string),Expression) -->
 where_clause(WhereCondition) -->
   cmd(where)                          # 'WHERE',
   opening_parentheses_star(N),
-  {!},
   where_condition(WhereCondition)     # 'WHERE condition',
   closing_parentheses_star(N).
 where_clause(true) -->
@@ -240,44 +409,6 @@ where_condition(C) -->
 
 sql_having_condition(C) --> 
   sql_condition(C).*/
-
-sql_condition(F) -->
-  sql_condition(1200,F).
-    
-sql_condition(PP,To) -->
-  cond_factor(L), 
-  r_sql_condition(PP,0,L/To).
-sql_condition(PP,To) -->
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_condition(1200,T)               # 'valid SQL condition', 
-  punct(')')                          # 'closing parenthesis '')''',
-  !,
-  r_sql_condition(PP,0,T/To).
-/*sql_condition(PP,To) -->
-  {sql_operator(P,FX,SOP,OP),
-    prefix(P,FX,PR),
-    P=<PP},
-  op(SOP)                             # OP,
-  sql_condition(PR,T)                 # 'valid SQL condition', 
-  {NT=..[OP,T]},
-  r_sql_condition(PP,P,NT/To).
-
-r_sql_condition(PP,Pi,Ti/To) -->
-  {sql_operator(P,YFX,SOP,OP),
-    infix(P,YFX,PL,PR),
-    P=<PP,
-    Pi=<PL,
-    NT=..[OP,Ti,T]},
-  op(SOP)                            # OP,
-  sql_condition(PR,T), 
-  r_sql_condition(PP,P,NT/To).*/
-r_sql_condition(_,_,Ti/Ti) -->
-  [].
-  
-/*sql_operator(1100,xfy, or,'or').
-sql_operator(1050,xfy, xor,'xor').
-sql_operator(1000,xfy, and,'and').
-sql_operator( 900, fy, not,'not').*/
 
 cond_factor(E) -->
   b_sql_condition(E).
@@ -387,11 +518,6 @@ sql_rel_cond_factor(OpMod,L,SQLst,CF) :-
 sql_rel_cond_factor(Op,L,R,CF) :-
   CF=..[Op,L,R].
 
-b_sql_condition(SQLst) -->
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_condition(SQLst),
-  punct(')')                          # 'closing parenthesis '')'''.
-
 relop(RO) --> 
   set_op(RO).
 relop(RO) --> 
@@ -464,14 +590,6 @@ sql_proj_expression_sequence([C]) -->
 sql_proj_expression(expr(E,AS,Type),AS) -->
   sql_expression(E,Type).
 
-
-column(attr(R,C,none)) --> 
-  relname(R),
-  punct('.')                          # 'dot',
-  colname(C).
-column(attr(none,C,none)) --> 
-  colname(C).
-
 /*
 dql_or_constant_tuples(_A,R) -->
   dqlStmt(R).
@@ -498,52 +616,14 @@ args_to_exprs([],[]).
 args_to_exprs([C|Cs],[expr(C,_,_)|Es]) :-
   args_to_exprs(Cs,Es).*/
 
-sql_expression(E,T) -->
-  {current_db(_,postgresql)},
-  sql_expression(1200,E,T),
-  punct('::')                         # 'double colon',
-  sql_type(_).
-sql_expression(E,T) -->
-  sql_expression(1200,E,T)            # 'valid expression'.
-
-sql_expression(PP,Lo,To) -->
-  sql_factor(L,T), 
-  r_sql_expression(PP,0,L/Lo,T/To).
-sql_expression(PP,Lo,To) -->
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_expression(1200,L,T), 
-  punct(')')                          # 'closing parenthesis '')''',
-  !, % WARNING
-  r_sql_expression(PP,0,L/Lo,T/To).
-sql_expression(PP,Lo,To) -->
-  {my_operator(P,FX,[T,Ta],_,OP),
-    prefix(P,FX,PR),
-    P=<PP},
-    op(OP)                             # OP,
-  sql_expression(PR,L,Ta), 
-  {NL=..[OP,L]},
-  r_sql_expression(PP,P,NL/Lo,T/To).
-  
-r_sql_expression(PP,Pi,Li/Lo,Ti/To) -->
-  {my_operator(P,YFX,[T,Ti,RT],_,OP),
-    infix(P,YFX,PL,PR),
-    P=<PP,
-    Pi=<PL
-  },
-  op(OP)                             # OP,
-  sql_expression(PR,L,RT), 
-  {NL=..[OP,Li,L]}, 
-  r_sql_expression(PP,P,NL/Lo,T/To).
-r_sql_expression(_,_,Li/Li,Ti/Ti) -->
-  [].
 
 sql_factor(E,T) -->
-  punct('(')                          # 'opening parenthesis ''(''',
+  [punct('('):_],
   sql_expression(E,T),
   punct(')')                          # 'closing parenthesis '')''',
   {!}. % WARNING: This whole clause is only for improving parsing performance
 sql_factor(E,_) --> % :::WARNING: Add type info
-dqlStmt([E|STs]/STs)                  # 'valid DQL statement',
+  dqlStmt([E|STs]/STs)                  # 'valid DQL statement',
   !.
 /*sql_factor(Aggr,T) -->
   sql_special_aggregate_function(Aggr,T),
@@ -671,36 +751,6 @@ ren_tablename((T,[I|Args])) -->
   set_error_with_parameter('Semantic', 'Table ~w does not exist in the $des system' , [T], Position),
   !, fail)}.
 
-% tablename/viewname/colname/relname
-tablename(TableName) -->
-  sql_user_identifier(TableName).
-
-viewname(ViewName) -->
-  sql_user_identifier(ViewName).
-
-colname(ColName) -->
-  sql_user_identifier(ColName).
-
-relname(RelName) --> 
-  sql_user_identifier(RelName).
-
-% get table,view or col name -> quoted_id(id) | id(id) | [id(id)] | `id(id)` 
-sql_user_identifier(Name) -->
-  [quoted_id(Name):_Pos].
-
-sql_user_identifier(Name) --> 
-  [punct('['):_],  %no "punct(']') # 'opening bracket'" because it's not mandatory
-  [id(Name):_Pos],
-  punct(']')                          # 'closing bracket '']'''.
-
-sql_user_identifier(Name) --> 
-  [punct('`'):_],  %no "punct('`') # 'opening back quotes'" because it's not mandatory
-  [id(Name):_Pos],
-  punct('`')                          # 'closing back quotes ''`'''.
-
-sql_user_identifier(Name) -->
-  [id(Name):_Pos].
-
 %To obtain the arity (the number of attributes or columns) of a 
 %relation (table or view) in the database.
 get_relation_arity(Relation,Arity) :-
@@ -771,285 +821,6 @@ sql_ground_tuple(L,Cs) -->
     (L=TL -> true ;
       set_error_with_parameter('Semantic', 'Unmatching number of values => ~w (must be ~w)' , [TL, L], Position),
       !, fail)}.
-
-/*
-sql_expressions([E|Es]) -->
-  sql_expression(E,_)                 # 'an expression',
-  punct(',')                          # 'comma',
-  !,
-  sql_expressions(Es).
-sql_expressions([E]) -->
-  sql_expression(E,_)                 # 'an expression'.
-sql_expressions([]) -->
-  []. 
-*/
-
-sql_constants([C|Cs]) -->
-  sql_constant(C)                     # 'a constant',
-  punct(',')                          # 'comma',
-  !,
-  sql_constants(Cs).
-sql_constants([C]) -->
-  sql_constant(C)                     # 'a constant'.
-
-sql_constant(cte(C,number(N))) --> 
-  value(C, N),
-  !.
-sql_constant(cte(C,string(none))) -->
-  value(C),
-  !.
-sql_constant(default) -->
-  cmd(default)                        # 'DEFAULT',
-  !.
-sql_constant(cte('$NULL'(N),none)) -->
-  cmd(null)                           # 'NULL',
-  !,
-  {get_null_id(N)}. % :::WARNING: Needed?
-sql_constant(C) -->
-  sql_date_constant(C),
-  !.
-
-sql_constant(_) -->
-  set_error('Syntax', 'Number, String, DATE String, TIME String, TIMESTAMP String, NULL').
-
-sql_date_constant(cte(date(Y,M,D),datetime(date))) -->
-  cmd(date)                              # 'DATE',
-  optional_cmd(bc,BC),
-  current_position(Position),
-  value(str(C))                          # 'string',
-  !,
-  { 
-    string_chars(C, Chars),
-    (phrase(valid_date_format, Chars) -> true; set_error_with_parameter('Syntax', 'DATE String format must be [BC] \'Int-Int-Int\'' , [], Position),
-    !, fail),
-    split_string(C, "-", "", DateParts),
-    maplist(number_string, [YRaw, M, D], DateParts),
-    adjust_year(BC, YRaw, Y)            % Adjust year if BC is true
-  }.  
-
-sql_date_constant(cte(time(H,Mi,Se),datetime(time))) -->
-  cmd(time)                           # 'time',
-  current_position(Position),
-  value(str(C))                       # 'string',
-  { 
-    string_chars(C, Chars),
-    (phrase(valid_time_format, Chars) -> true; set_error_with_parameter('Syntax', 'TIME String format must be \'Int:Int:Int\'' , [], Position),
-    !, fail),
-    split_string(C, ":", "", TimeParts),
-    maplist(number_string, [H, Mi, Se], TimeParts)
-  }.
-
-sql_date_constant(cte(datetime(Y,M,D,H,Mi,S),datetime(datetime))) -->
-  (cmd(datetime)                       # 'DATETIME';
-  cmd(timestamp)                       # 'TIMESTAMP'),
-  optional_cmd(bc,BC),
-  current_position(Position),
-  value(str(C))                       # 'string',
-  !,
-  { 
-    string_chars(C, Chars),
-    (phrase(valid_datetime_format, Chars) -> true; set_error_with_parameter('Syntax', 'DATETIME/TIMESTAMP String format must be [BC] \'Int-Int-Int Int:Int:Int\'' , [], Position),
-    !, fail),
-    split_string(C, " ", "", [DateString,TimeString]),
-    split_string(DateString, "-", "", DateParts),
-    split_string(TimeString, ":", "", TimeParts),
-    append(DateParts, TimeParts, DateTimeParts),
-    maplist(number_string, [YRaw, M, D, H, Mi, S], DateTimeParts),
-    adjust_year(BC, YRaw, Y)            % Adjust year if BC is true
-  }.  
-
-% define valid_date_format
-valid_date_format -->
-  one_to_four_digits, ['-'], one_or_two_digits, ['-'], one_or_two_digits.
-
-valid_time_format -->
-  one_or_two_digits, [':'], one_or_two_digits, [':'], one_or_two_digits.
-
-valid_datetime_format -->
-  valid_date_format, [' '], valid_time_format.
-
-
-one_to_four_digits --> digit.
-one_to_four_digits --> digit, digit.
-one_to_four_digits --> digit, digit, digit.
-one_to_four_digits --> digit, digit, digit, digit.
-
-one_or_two_digits --> digit.
-one_or_two_digits --> digit, digit.
-
-% define digit
-digit --> [C], { char_type(C, digit) /*-> true; set_error_with_parameter('Syntax', 'int' , [], Position),
-!, fail) */}.
-
-adjust_year(true, YRaw, Y) :- Y is 1 - YRaw.
-adjust_year(false, YRaw, Y) :- Y is YRaw.
-
-
-% cs_nat_exprs(-Ns)//
-% Comma-separated naturals (0..)
-cs_nat_exprs([N1, N2|Ns]) -->
-  nat_expression(N1)                  # 'natural expression',
-  punct(',')                          # 'comma',
-  !,
-  cs_nat_exprs([N2|Ns]).
-cs_nat_exprs([N]) -->
-  nat_expression(N)                   # 'natural expression'.
-
-
-% cs_variables(-Vs)//
-% Comma-separated atomic variables
-cs_variables([id(V1), V2|Vs]) -->
-  variable(V1)                        # 'variable',
-  punct(',')                          # 'comma',
-  !,
-  cs_variables([V2|Vs]).
-cs_variables([id(V)]) -->
-  variable(V)                         # 'variable'.
-
-
-% cs_values(-Vs)//
-% Comma-separated numbers and strings
-cs_values([V1, V2|Vs]) -->
-  value(V1, _)                        # 'value (number or string)',
-  punct(',')                          # 'comma',
-  !,
-  cs_values([V2|Vs]).
-cs_values([V]) -->
-  value(V, _)                         # 'value (number or string)'.
-
-% value(-Value, Type)//
-value(int(I), int) -->
-  int(I),
-  !.
-value(frac(I, F), frac) -->
-  frac(I, F),
-  !.
-value(float(I, F, Ex), float) -->
-  float(I, F, Ex),
-  !.
-
-value(str(Str)) -->
-  [str(Str):_],
-  !.
-
-
-
-% is_number(+Expr)
-% Succeed if Expr is a number
-is_number(Expr) :-
-  value(_, [Expr:_], []),
-  Expr \= str(_).
-
-/*
-% num_expression(-Expression)//
-num_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_num_expression(Expression)}.
-
-% int_expression(-Expression)//
-int_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_int_expression(Expression)}.
-
-% nat_expression(-Expression)//
-nat_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_nat_expression(Expression)}.
-
-% bool_expression(-Expression)//
-bool_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_bool_expression(Expression)}.
-
-% str_expression(-Expression)//
-str_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_str_expression(Expression)}.
-
-% is_num_expression(+Expression)
-is_num_expression(Expression) :- % REFINE. Naive test
-  Expression \= str(_).
-
-% is_str_expression(+Expression)
-is_str_expression(Expression) :- % REFINE. Naive test
-  Expression \= int(_),
-  Expression \= frac(_, _),
-  Expression \= float(_, _, _).
-
-% is_bool_expression(+Expression)
-is_bool_expression(Expression) :- % REFINE. Naive test
-  is_int_expression(Expression).
-
-% is_int_expression(+Expression)
-is_int_expression(Expression) :-  % REFINE. Naive test
-  Expression \= str(_),
-  Expression \= frac(_, _),
-  Expression \= float(_, _, _).
-
-% is_nat_expression(+Expression)
-is_nat_expression(Expression) :- % REFINE. Naive test
-  is_int_expression(Expression).
-*/
-
-% VALUES
-
-% int(-I)//
-int(I) -->
-  [int(I):_Pos].
-
-% frac(I, F)//
-frac(I, F) -->
-  [frac(I, F):_Pos].
-
-% float(I, F, E)//
-float(I, F, E) -->
-  [float(I, F, E):_Pos].
-
-/*
-% VARIABLES
-
-% variable(-Id)//
-% Variable (e.g., a, a$) or array element (e.g., a(0), a$(0))
-variable(Id) -->
-  array_variable(Id)           # 'Variable',
-  !.
-variable(Id) -->
-  non_array_variable(Id)       # 'Variable'.
-
-% non_array_variable(-Id)//
-non_array_variable(Id) -->
-    numeric_variable(Id)
-  ; string_variable(Id).
-
-% numeric_variable(-Id)//
-% A function, operator or command name can play the role of a numeric
-% variable (no reserved words), but not a string variable (ended in '$')
-numeric_variable(Id) -->
-    [id(Id):_],
-    {\+ is_str_type_var(Id)}
-  ; [fn(Id/_Ar):_]
-  ; [cmd(Id):_]
-  ; [op(Id):_].
-
-% string_variable(-Id)//
-string_variable(Id) -->
-    [id(Id):_],
-    {is_str_type_var(Id)}.
-
-% array_variable(-Id, -Index)//
-% Name of the array variable and its index as a list of expressions
-array_variable(Id) -->
-  non_array_variable(N)               # 'Variable',
-  punct('(')                          # 'Opening parenthesis',
-  cs_nat_exprs(Index)                 # 'Array index',
-  punct(')')                          # 'Closing parenthesis',
-  {Id =.. [N|Index]}.
-*/
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % % ISL (Information Schema Language) statements
@@ -1123,14 +894,13 @@ tmlStmt([savepoint([SP])|STs]/STs) -->
   filename(FileName)                  # 'string (savepoint name)',
   {atom_concat(FileName,'.ddb',SP)}.
 
-
 % filename(FileName)//
 % get file name -> quoted_id()
 filename(FileName) -->
   [quoted_id(FileName):_Pos].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Types
+% SQL Types
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % char(n)
@@ -1226,104 +996,315 @@ optional_integer_range(R) -->
 optional_integer_range(_R) -->
   [].
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Expression parser
+% SQL Constants
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Adapted from: "The simple and powerful yfx operator precedence parser", E. L. Favero, 2007, Softw. Pract. Exper., 37:1451-1474, Wiley
+%constants
+sql_constants([C|Cs]) -->
+  sql_constant(C)                     # 'a constant',
+  punct(',')                          # 'comma',
+  !,
+  sql_constants(Cs).
+sql_constants([C]) -->
+  sql_constant(C)                     # 'a constant'.
 
-% expr(-Expression)//
-expr(E) -->
-  % Start with the lowest precedence (1 is the maximum precedence)
-  expr(E, 1200),
+%constant number, string, default, null, date_constant
+sql_constant(cte(C,number(N))) --> 
+  value(C, N),
+  !.
+sql_constant(cte(C,string(none))) -->
+  value(C),
+  !.
+sql_constant(default) -->
+  cmd(default)                        # 'DEFAULT',
+  !.
+sql_constant(cte('$NULL'(N),none)) -->
+  cmd(null)                           # 'NULL',
+  !,
+  {get_null_id(N)}. % :::WARNING: Needed?
+sql_constant(C) -->
+  sql_date_constant(C),
   !.
 
-% expr(-Expression, +Precedence)//
-% Op: Operator
-% LP: Left Precedence, RP: Right Precedence, PP: Principal Precedence
-expr(E, PP) --> % Integers/Fractionals/Floats/Strings
-  value(V),
-  !,
-  rExpr(V, E, 0, PP).
-expr(E, PP) --> % Parenthesized expressions
-  [punct('('):_],
-  expr(TI),
-  [punct(')'):_],
-  !,
-  rExpr(TI, E, 0, PP).
-expr(E, PP) --> % 0-Arity Functions
-  [fn(N/0):_],
-  !,
-  rExpr(fn(N), E, 0, PP).
-expr(E, PP) --> % Functions
-  [fn(N/Ar):_,
-   punct('('):_],
-  fn_args(Ar, As),
-  [punct(')'):_],
-  !,
-  {Fn =.. [N|As]},
-  rExpr(fn(Fn), E, 0, PP).
-expr(E, PP) --> % Prefix operators (no posfix in BASIC)
-  [op(Op):_],
-  {prefix(Op, P, RP),
-   P =< PP,
-   !},
-   %true},
-  expr(Arg, RP),
-  {NE =.. [Op, Arg]},
-  rExpr(NE, E, P, PP).
-expr(E, PP) --> % Array element
-  non_array_variable(N),
-  [punct('('):_],
-  cs_nat_exprs(Is), % Index
-  [punct(')'):_],
-  !,
-  {Id =.. [N|Is]},
-  rExpr(id(Id), E, 0, PP).
-expr(E, PP) --> % Variables (numeric and strings)
-  non_array_variable(Id),
-  !,
-  rExpr(id(Id), E, 0, PP).
+sql_constant(_) -->
+  set_error('Syntax', 'Number, String, DATE String, TIME String, TIMESTAMP String, NULL').
 
-% rExpr(+Expr, -E, +LeftP, +PP)//
-rExpr(Expr, E, LeftP, PP) -->
-  [op(Op):_],
-  {infix(Op, P, LP, RP),
-   P =< PP,
-   LeftP =< LP,
-   (redef(Op) -> true ; !)},
-   %(redef(Op) -> true ; true)},
-  expr(Arg2, RP),
-  {NE =.. [Op, Expr, Arg2]},
-  rExpr(NE, E, P, PP).
-rExpr(Expr, E, LeftP, PP) -->
-  [op(Op):_],
-  {posfix(Op, P, LP),
-   P =< PP,
-   LeftP =< LP,
-   (redef(Op) -> true ; !),
-   NE =.. [Op, Expr]},
-  rExpr(NE, E, P, PP).
-rExpr(E, E, _, _) -->
+%date_constant
+sql_date_constant(cte(date(Y,M,D),datetime(date))) -->
+  cmd(date)                              # 'DATE',
+  optional_cmd(bc,BC),
+  current_position(Position),
+  value(str(C))                          # 'string',
+  !,
+  { 
+    string_chars(C, Chars),
+    (phrase(valid_date_format, Chars) -> true; set_error_with_parameter('Syntax', 'DATE String format must be [BC] \'Int-Int-Int\'' , [], Position),
+    !, fail),
+    split_string(C, "-", "", DateParts),
+    maplist(number_string, [YRaw, M, D], DateParts),
+    adjust_year(BC, YRaw, Y)            % Adjust year if BC is true
+  }.  
+
+sql_date_constant(cte(time(H,Mi,Se),datetime(time))) -->
+  cmd(time)                           # 'time',
+  current_position(Position),
+  value(str(C))                       # 'string',
+  { 
+    string_chars(C, Chars),
+    (phrase(valid_time_format, Chars) -> true; set_error_with_parameter('Syntax', 'TIME String format must be \'Int:Int:Int\'' , [], Position),
+    !, fail),
+    split_string(C, ":", "", TimeParts),
+    maplist(number_string, [H, Mi, Se], TimeParts)
+  }.
+
+sql_date_constant(cte(datetime(Y,M,D,H,Mi,S),datetime(datetime))) -->
+  (cmd(datetime)                       # 'DATETIME';
+  cmd(timestamp)                       # 'TIMESTAMP'),
+  optional_cmd(bc,BC),
+  current_position(Position),
+  value(str(C))                       # 'string',
+  !,
+  { 
+    string_chars(C, Chars),
+    (phrase(valid_datetime_format, Chars) -> true; set_error_with_parameter('Syntax', 'DATETIME/TIMESTAMP String format must be [BC] \'Int-Int-Int Int:Int:Int\'' , [], Position),
+    !, fail),
+    split_string(C, " ", "", [DateString,TimeString]),
+    split_string(DateString, "-", "", DateParts),
+    split_string(TimeString, ":", "", TimeParts),
+    append(DateParts, TimeParts, DateTimeParts),
+    maplist(number_string, [YRaw, M, D, H, Mi, S], DateTimeParts),
+    adjust_year(BC, YRaw, Y)            % Adjust year if BC is true
+  }.  
+
+% define valid_date_format
+valid_date_format -->
+  one_to_four_digits, ['-'], one_or_two_digits, ['-'], one_or_two_digits.
+
+valid_time_format -->
+  one_or_two_digits, [':'], one_or_two_digits, [':'], one_or_two_digits.
+
+valid_datetime_format -->
+  valid_date_format, [' '], valid_time_format.
+
+
+one_to_four_digits --> digit.
+one_to_four_digits --> digit, digit.
+one_to_four_digits --> digit, digit, digit.
+one_to_four_digits --> digit, digit, digit, digit.
+
+one_or_two_digits --> digit.
+one_or_two_digits --> digit, digit.
+
+% define digit
+digit --> [C], { char_type(C, digit) /*-> true; set_error_with_parameter('Syntax', 'int' , [], Position),
+!, fail) */}.
+
+adjust_year(true, YRaw, Y) :- Y is 1 - YRaw.
+adjust_year(false, YRaw, Y) :- Y is YRaw.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SQL Condition
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+sql_condition(F) -->
+  sql_condition(1200,F).
+    
+sql_condition(PP,To) -->
+  cond_factor(L), 
+  r_sql_condition(PP,0,L/To).
+
+sql_condition(PP,To) -->
+  [punct('('):_],
+  sql_condition(1200,T)               # 'valid SQL condition', 
+  punct(')')                          # 'closing parenthesis '')''',
+  !,
+  r_sql_condition(PP,0,T/To).
+sql_condition(PP,To) -->
+  {sql_operator(P,FX,OP,QOP),
+    prefix(P,FX,PR),
+    P=<PP},
+  op(OP)                              # QOP,
+  sql_condition(PR,T)                 # 'valid SQL condition', 
+  {NT=..[OP,T]},
+  r_sql_condition(PP,P,NT/To).
+
+r_sql_condition(PP,Pi,Ti/To) -->
+  {sql_operator(P,YFX,OP,QOP),
+    infix(P,YFX,PL,PR),
+    P=<PP,
+    Pi=<PL,
+    NT=..[OP,Ti,T]},
+  op(OP)                             # QOP,
+  sql_condition(PR,T), 
+  r_sql_condition(PP,P,NT/To).
+r_sql_condition(_,_,Ti/Ti) -->
   [].
 
+sql_operator(1100,xfy, or,'or').
+sql_operator(1050,xfy, xor,'xor').
+sql_operator(1000,xfy, and,'and').
+sql_operator( 900, fy, not,'not').
 
-% fn_args(+Arity, -As)//
-% Function arguments
-fn_args(Ar, H) -->
-  expr(A1),
-  ([punct(','):_]
-   -> {H = [A1, A2|As],
-       Ar1 is Ar - 1},
-      fn_args(Ar1, [A2|As])
-   ;  {H = [A1],
-       Ar == 1}).
+b_sql_condition(SQLst) -->
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_condition(SQLst),
+  punct(')')                          # 'closing parenthesis '')'''.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SQL Expressions
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% redef(?Op)
-% Redefined operators
-redef(+).
-redef(-).
+/*
+sql_expressions([E|Es]) -->
+  sql_expression(E,_)                 # 'an expression',
+  punct(',')                          # 'comma',
+  !,
+  sql_expressions(Es).
+sql_expressions([E]) -->
+  sql_expression(E,_)                 # 'an expression'.
+sql_expressions([]) -->
+  []. 
+*/
+
+sql_expression(E,T) -->
+  {current_db(_,postgresql)},
+  sql_expression(1200,E,T),
+  punct('::')                         # 'double colon',
+  sql_type(_).
+sql_expression(E,T) -->
+  sql_expression(1200,E,T)            # 'valid expression'.
+
+sql_expression(PP,Lo,To) -->
+  sql_factor(L,T), 
+  r_sql_expression(PP,0,L/Lo,T/To).
+sql_expression(PP,Lo,To) -->
+  [punct('('):_],
+  sql_expression(1200,L,T), 
+  punct(')')                          # 'closing parenthesis '')''',
+  !, % WARNING
+  r_sql_expression(PP,0,L/Lo,T/To).
+sql_expression(PP,Lo,To) -->
+  {my_operator(P,FX,[T,Ta],_,OP),
+    prefix(P,FX,PR),
+    P=<PP},
+    op(OP)                             # OP,
+  sql_expression(PR,L,Ta), 
+  {NL=..[OP,L]},
+  r_sql_expression(PP,P,NL/Lo,T/To).
+  
+r_sql_expression(PP,Pi,Li/Lo,Ti/To) -->
+  {my_operator(P,YFX,[T,Ti,RT],_,OP),
+    infix(P,YFX,PL,PR),
+    P=<PP,
+    Pi=<PL
+  },
+  op(OP)                             # OP,
+  sql_expression(PR,L,RT), 
+  {NL=..[OP,Li,L]}, 
+  r_sql_expression(PP,P,NL/Lo,T/To).
+r_sql_expression(_,_,Li/Li,Ti/Ti) -->
+  [].
+
+/*
+% num_expression(-Expression)//
+num_expression(Expression) -->
+  expr(Expression),
+  !,
+  {is_num_expression(Expression)}.
+
+% int_expression(-Expression)//
+int_expression(Expression) -->
+  expr(Expression),
+  !,
+  {is_int_expression(Expression)}.
+
+% nat_expression(-Expression)//
+nat_expression(Expression) -->
+  expr(Expression),
+  !,
+  {is_nat_expression(Expression)}.
+
+% bool_expression(-Expression)//
+bool_expression(Expression) -->
+  expr(Expression),
+  !,
+  {is_bool_expression(Expression)}.
+
+% str_expression(-Expression)//
+str_expression(Expression) -->
+  expr(Expression),
+  !,
+  {is_str_expression(Expression)}.
+
+% is_num_expression(+Expression)
+is_num_expression(Expression) :- % REFINE. Naive test
+  Expression \= str(_).
+
+% is_str_expression(+Expression)
+is_str_expression(Expression) :- % REFINE. Naive test
+  Expression \= int(_),
+  Expression \= frac(_, _),
+  Expression \= float(_, _, _).
+
+% is_bool_expression(+Expression)
+is_bool_expression(Expression) :- % REFINE. Naive test
+  is_int_expression(Expression).
+
+% is_int_expression(+Expression)
+is_int_expression(Expression) :-  % REFINE. Naive test
+  Expression \= str(_),
+  Expression \= frac(_, _),
+  Expression \= float(_, _, _).
+
+% is_nat_expression(+Expression)
+is_nat_expression(Expression) :- % REFINE. Naive test
+  is_int_expression(Expression).
+*/
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Column   tablename viewname colname relname 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%column rel_id.col_id/col_id
+column(attr(R,C,none)) --> 
+  relname(R),
+  punct('.')                          # 'dot',
+  colname(C).
+column(attr(none,C,none)) --> 
+  colname(C).
+
+% tablename/viewname/colname/relname
+tablename(TableName) -->
+  sql_user_identifier(TableName).
+
+viewname(ViewName) -->
+  sql_user_identifier(ViewName).
+
+colname(ColName) -->
+  sql_user_identifier(ColName).
+
+relname(RelName) --> 
+  sql_user_identifier(RelName).
+
+% get table,view or col name -> quoted_id(id) | id(id) | [id(id)] | `id(id)` 
+sql_user_identifier(Name) -->
+  [quoted_id(Name):_Pos].
+
+sql_user_identifier(Name) --> 
+  [punct('['):_],  %no "punct(']') # 'opening bracket'" because it's not mandatory
+  [id(Name):_Pos],
+  punct(']')                          # 'closing bracket '']'''.
+
+sql_user_identifier(Name) --> 
+  [punct('`'):_],  %no "punct('`') # 'opening back quotes'" because it's not mandatory
+  [id(Name):_Pos],
+  punct('`')                          # 'closing back quotes ''`'''.
+
+sql_user_identifier(Name) -->
+  [id(Name):_Pos].
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1344,6 +1325,39 @@ Goal # Error -->
   {set_error('Syntax', Error, Position)},
   Goal.
 
+% is_number(+Expr)
+% Succeed if Expr is a number
+is_number(Expr) :-
+  value(_, [Expr:_], []),
+  Expr \= str(_).
+
+% VALUES
+% int(-I)//
+int(I) -->
+  [int(I):_Pos].
+
+% frac(I, F)//
+frac(I, F) -->
+  [frac(I, F):_Pos].
+
+% float(I, F, E)//
+float(I, F, E) -->
+  [float(I, F, E):_Pos].
+
+
+% value(-Value, Type)//
+value(int(I), int) -->
+  int(I),
+  !.
+value(frac(I, F), frac) -->
+  frac(I, F),
+  !.
+value(float(I, F, Ex), float) -->
+  float(I, F, Ex),
+  !.
+value(str(Str)) -->
+  [str(Str):_],
+  !.
 
 % optional_op(-Op, true/false)//
 % Optional op
@@ -1395,7 +1409,7 @@ closing_parentheses_star(N) -->
   !. 
   
 closing_parentheses_star(N,NN) -->
-  [punct(')'):_],
+  punct(')')                          # 'closing parenthesis '')''',
   {N1 is N+1},
   closing_parentheses_star(N1,NN).
 closing_parentheses_star(N,N) -->
