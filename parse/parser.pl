@@ -2,7 +2,6 @@
           [ lex_parse/2,
             lex_parse/1,
             parse/2,
-            expr/3,
             is_number/1 ]).
 
 :- use_module(misc).
@@ -50,7 +49,16 @@ lex_parse(Input) :-
   phrase(filter_tokens(FilteredTokens, []), Tokens),
   !,
   parse(FilteredTokens, SyntaxTrees),
+  forall(member(Tree, SyntaxTrees), writeln(Tree)).
+
+/*
+lex_parse(Input) :-
+  lex(Input, Tokens),
+  phrase(filter_tokens(FilteredTokens, []), Tokens),
+  !,
+  parse(FilteredTokens, SyntaxTrees),
   print(SyntaxTrees).
+*/
 
 lex_parse(Input, SyntaxTrees) :-
   lex(Input, Tokens),
@@ -168,28 +176,55 @@ ddlStmt([CRTSchema|STs]/STs) -->
   create_or_replace(CR),
   cmd(table)                          # 'TABLE or VIEW',
   complete_constrained_typed_schema(Schema,Ctrs) # 'typed schema',
-  syntax_check_redef(Schema),
+  % syntax_check_redef(Schema),  If attempting to redefine a datalog keyword, exception is thrown.
   {atom_concat(CR,'_table',CRT),
   CRTSchema=..[CRT,Schema,Ctrs]},
-  
-  
-  /*opening_parentheses_star(N),
+  !.
+
+% CREATE TABLE LIKE
+ddlStmt([CRTSchema|STs]/STs) -->
+  create_or_replace(CR),
+  cmd(table)                          # 'TABLE or VIEW',
+  tablename(TableName)                # 'table name',
+  % syntax_check_redef(TableName),  If attempting to redefine a datalog keyword, exception is thrown.
+  opening_parentheses_star(N),
+  cmd(like)                           # 'LIKE',
+  sql_user_identifier(ExistingTableName) # 'table identifier',
+  closing_parentheses_star(N),
+  {atom_concat(CR,'_table_like',CRT),
+   CRTSchema=..[CRT,TableName,ExistingTableName]},
+  !.
+
+% CREATE TABLE AS
+ddlStmt([CRTSchema|STs]/STs) -->
+  create_or_replace(CR),
+  cmd(table)                          # 'TABLE or VIEW',
+  push_syntax_error(['Expected table schema'],Old2),
+  create_view_schema(Schema),
+  % syntax_check_redef(Schema),  If attempting to redefine a datalog keyword, exception is thrown.
+  opening_parentheses_star(N),
   cmd(as)                             # 'AS',
-  dqlStmt((LSQLst,Schema))            # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
+  dqlStmt([(LSQLst,Schema)|STs]/STs)  # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
   closing_parentheses_star(N),
   {atom_concat(CR,'_table_as',CRT),
    CRTSchema=..[CRT,(LSQLst,_AS),Schema]},
-  !.*/
+  !.
 
-create_or_replace(create_or_replace) -->
+% CREATE DATABASE
+ddlStmt([create_database(DBName)|STs]/STs) -->
   cmd(create)                         # 'CREATE',
-  cmd(or)                             # 'OR REPLACE',
-  cmd(replace)                        # 'REPLACE',
+  cmd(database)                       # 'TABLE, VIEW or DATABASE',
+  optional_database_name(DBName)      # 'database name',
   !.
 
 create_or_replace(create) -->
+  cmd(create)                         # 'CREATE'.
+
+create_or_replace(create_or_replace) -->
   cmd(create)                         # 'CREATE',
-  !.
+  op(or)                              # 'OR REPLACE, DATABASE',
+  cmd(replace)                        # 'REPLACE'.
+
 
 complete_constrained_typed_schema(Schema,Ctrs) -->
   sql_user_identifier(Name),
@@ -211,12 +246,12 @@ constrained_typed_columns([C:T|CTs],Ctrs) -->
 constrained_typed_column(C:T,Ctrs) --> 
   typed_column(C:T),
   column_constraint_definitions(C,Ctrs) # 'column constraints'.
-my_constrained_typed_column(C:T,[true]) --> 
+constrained_typed_column(C:T,[true]) --> 
   typed_column(C:T).
 
 typed_column(C:T) -->
-  sql_user_identifier(C),
-  sql_type(T)                         # 'type'.
+  colname(C)                          # 'a column identifier',
+  sql_type(T).
   
 column_constraint_definitions(C,Ctrs) -->
   optional_constraint_name(_CtrName),
@@ -233,60 +268,76 @@ optional_constraint_name(CtrName) -->
 optional_constraint_name('$void') -->
   [].
 
-%HERE
-/* 
-my_column_constraint(C,not_nullables([C])) -->
-  my_kw("NOT"),
-  push_syntax_error(['Expected NULL'],Old),
-  my_sql_blanks,
-  my_kw("NULL"),
-  pop_syntax_error(Old).
-my_column_constraint(_C,true) -->
-  my_kw("NULL").
-my_column_constraint(C,primary_key([C])) -->
-  my_kw("PRIMARY"),
-  push_syntax_error(['Expected KEY'],Old),
-  my_sql_blanks,
-  my_kw("KEY"),
-  pop_syntax_error(Old).
-my_column_constraint(C,candidate_key([C])) -->
-  my_kw("UNIQUE").
-my_column_constraint(C,foreign_key([C],TableName,[TC])) -->
-  my_kw("REFERENCES"),
-  my_referenced_column(C,TableName,TC),
-  my_optional_referential_triggered_action(_Rule).
-my_column_constraint(C,default(C,Expression,Type)) -->
-  my_kw("DEFAULT"),
-  push_syntax_error(['Expected expression'],Old),
-  my_sql_blanks,
-  my_sql_expression(Expression,Type), 
-  pop_syntax_error(Old).
-my_column_constraint(_C,CheckCtr) -->
-  my_kw("CHECK"),
-  push_syntax_error(['Invalid check constraint'],Old),
-  my_opening_parentheses_star(N),
-  my_optional_sql_blanks(N),
-  my_check_constraint(CheckCtr),
-  my_closing_parentheses_star(N),
-  pop_syntax_error(Old).
-my_column_constraint(C,candidate_key([C])) -->
-  my_kw("CANDIDATE"),
-  push_syntax_error(['Expected KEY'],Old),
-  my_sql_blanks,
-  my_kw("KEY"),
-  pop_syntax_error(Old).
-my_column_constraint(C,fd([Att],[C])) -->
-  my_kw("DETERMINED"),
-  push_syntax_error(['Expected BY'],Old1),
-  my_sql_blanks,
-  my_kw("BY"),
-  pop_syntax_error(Old1),
-  my_sql_blanks,
-  push_syntax_error(['Expected column name'],Old2),
-  my_untyped_column(Att),
-  pop_syntax_error(Old2).*/
+referenced_column(_FC,TableName,TC) -->
+  tablename(TableName)                # 'table name',
+  punct('(')                          # 'opening parenthesis ''(''',
+  !,
+  untyped_column(TC)                  # 'a column name',
+  punct(')')                          # 'closing parenthesis '')'''.
+referenced_column(C,TableName,C) -->
+  tablename(TableName)                # 'table name',
+  !.
+
+optional_referential_triggered_action(on(Event,Action)) -->
+  cmd(on)                             # 'ON',
+  triggered_event(Event)              # 'DELETE or UPDATE',
+  referential_action(Action)          # 'CASCADE, SET NULL, SET DEFAULT, RESTRICT or NO ACTION',
+  !.
+optional_referential_triggered_action('$void') -->
+  [].
+
+triggered_event(delete) -->
+  cmd(delete)                         # 'DELETE'.
+triggered_event(update) -->
+  cmd(update)                         # 'UPDATE'.
+  
+referential_action(cascade) -->
+  cmd(cascade)                        # 'CASCADE'.
+referential_action(set_null) -->
+  cmd(set)                            # 'SET',
+  cmd(null)                           # 'NULL'.
+referential_action(set_default) -->
+  cmd(set)                            # 'SET',
+  cmd(default)                        # 'DEFAULT'.
+referential_action(restrict) -->
+  cmd(restrict)                       # 'RESTRICT'.
+referential_action(no_action) -->
+  cmd(no)                             # 'NO',
+  cmd(action)                         # 'ACTION'.
+
+check_constraint(fd(Ls,Rs)) -->
+  column_tuple(Rs)                    # 'a column sequence between parentheses',
+  cmd(determined)                     # 'DETERMINED',
+  cmd(by)                             # 'BY',
+  column_tuple(Ls)                    # 'a column sequence between parentheses'.
+check_constraint(sql_check_constraint(WhereCondition)) -->
+  where_condition(WhereCondition).
+
+optional_table_constraints(Ctrs) -->
+  punct(',')                          # 'comma', 
+  table_constraints(Ctrs).
+optional_table_constraints([]) -->
+  [].
+
+table_constraints([Ctr]) -->
+  optional_constraint_name(_CtrName),
+  table_constraint(Ctr).  
+table_constraints([Ctr|Ctrs]) -->
+  optional_constraint_name(_CtrName),
+  table_constraint(Ctr),
+  punct(',')                          # 'comma', 
+  table_constraints(Ctrs).  
+
 
 /*
+opening_parentheses_star(N),
+cmd(as)                             # 'AS',
+dqlStmt((LSQLst,Schema))            # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
+closing_parentheses_star(N),
+{atom_concat(CR,'_table_as',CRT),
+  CRTSchema=..[CRT,(LSQLst,_AS),Schema]},
+!.
+
 create_view_schema(Schema) -->
   complete_untyped_schema(Schema),
   !.
@@ -322,7 +373,25 @@ b_DQL(SQLst) -->
   dqlStmt(SQLst)                      # 'todo',
   punct(')')                          # 'closing parenthesis '')'''.
 
+where_clause(WhereCondition) -->
+  cmd(where)                          # 'WHERE',
+  opening_parentheses_star(N),
+  where_condition(WhereCondition)     # 'WHERE condition',
+  closing_parentheses_star(N).
+where_clause(true) -->
+  [].
 
+
+where_condition(C) --> 
+  sql_condition(C).
+
+/*on_condition(C) --> 
+  sql_condition(C).
+
+sql_having_condition(C) --> 
+  sql_condition(C).*/
+
+  
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % % DML (Data Manipulation Language) statements
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -345,7 +414,7 @@ dmlStmt([insert_into(TableName,Colnames, Vs)|STs]/STs) -->
   tablename(TableName)                # 'table name',
   current_position(Position),
   punct('(')                          # 'opening parenthesis or DEFAULT',
-  column_name_list(Colnames),
+  column_name_list(Colnames)          # 'a sequence of column names',
   punct(')')                          # 'closing parenthesis '')''',
   {(my_remove_duplicates(Colnames,Colnames) -> true ;
   set_error_with_parameter('Semantic', 'Column names must be different in ~w' , [Colnames], Position),
@@ -381,6 +450,27 @@ dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
   where_clause(WhereCondition),
   !.
 
+%insert_values(Arity, Values)
+insert_values(L,Vs) -->
+  cmd(default)                        # 'DEFAULT',
+  cmd(values)                         # 'VALUES',
+  {!,
+  length(Vs,L),
+  my_map_1('='(default),Vs)}.
+
+insert_values(L, Ts) -->
+  cmd(values)                         # 'VALUES',
+  !,
+  sql_ground_tuple_list(L,Ts).
+
+insert_values(_L, select()) -->
+  dqlStmt([select()|STs]/STs).
+
+insert_values(_,_) -->
+  set_error('Syntax', 'VALUES, select statement, or DEFAULT VALUES').
+
+
+%update_assignments(assignments)
 update_assignments([Column,Expression]) -->
   update_assignment(Column,Expression).
 update_assignments([Column,Expression|Assignments]) -->
@@ -392,203 +482,6 @@ update_assignment(expr(ColumnName,none,string),Expression) -->
   column(attr(_T,ColumnName,_AS)),
   comparisonOp('=')                   # 'equals ''=''', 
   sql_proj_expression(Expression,_Type).
-
-where_clause(WhereCondition) -->
-  cmd(where)                          # 'WHERE',
-  opening_parentheses_star(N),
-  where_condition(WhereCondition)     # 'WHERE condition',
-  closing_parentheses_star(N).
-where_clause(true) -->
-  [].
-
-where_condition(C) --> 
-  sql_condition(C).
-
-/*on_condition(C) --> 
-  sql_condition(C).
-
-sql_having_condition(C) --> 
-  sql_condition(C).*/
-
-cond_factor(E) -->
-  b_sql_condition(E).
-cond_factor(true) --> 
-  cmd(true)                           # 'TRUE',
-  !.
-cond_factor(false) --> 
-  cmd(false)                          # 'FALSE',
-  !.
-/*cond_factor(is_null(R)) --> 
-  sql_expression(R,_T), 
-  cmd(is), 
-  cmd(null)                           # 'NULL',
-  !.
-cond_factor(not(is_null(R))) --> 
-  sql_expression(R,_T),  
-  cmd(is), 
-  op(not)                             # 'NOT', 
-  cmd(null)                           # 'NULL',
-  !.
-cond_factor(exists(select())) -->
-  cmd(exists)                         # 'EXISTS',
-  !,
-  opening_parentheses_star(N),
-  dqlStmt([select()|STs]/STs)         # 'valid SELECT statement',
-  closing_parentheses_star(N).
-cond_factor(and('<='(L,C),'<='(C,R))) --> 
-  sql_expression(C,_CT),
-  cmd(between)                        # 'BETWEEN',
-  sql_expression(L,_LT),
-  %syntax_check_same_types('BETWEEN test',CT,LT),
-  op(and)                             # 'AND',
-  sql_expression(R,_RT),
-  %syntax_check_same_types('BETWEEN test',LT,RT),
-  syntax_check_between(L,R).
-cond_factor(or('>'(L,C),'>'(C,R))) --> 
-  sql_expression(C,_CT),
-  op(not)                             # 'NOT',
-  cmd(between)                        # 'BETWEEN',         
-  sql_expression(L,_LT),
-  %syntax_check_same_types('BETWEEN test',CT,LT),
-  op(and)                             # 'AND',
-  sql_expression(R,_RT),
-  %syntax_check_same_types('BETWEEN test',LT,RT),
-  syntax_check_between(L,R).
-cond_factor(in(L,R)) --> 
-  column_or_constant_tuple(L,A),
-  cmd(in),
-  opening_parentheses_star(N),
-  dql_or_constant_tuples(A,R),
-  closing_parentheses_star(N).
-cond_factor(not_in(L,R)) --> 
-  column_or_constant_tuple(L,A),
-  op(not)                             # 'NOT',
-  cmd(in)                             # 'IN',
-  opening_parentheses_star(N),
-  dql_or_constant_tuples(A,R),
-  closing_parentheses_star(N).
-cond_factor(F) --> 
-  sql_expression(L,LT),
-  syntax_check_expr_type(L,LT,string(_)),
-  optional_op(not,NOT),
-  cmd(like)                           # 'LIKE',
-  sql_expression(R,RT),
-  syntax_check_expr_type(R,RT,string(_)),
-  {(NOT==true -> F='$not_like'(L,R) ; F='$like'(L,R))}.
-cond_factor(F) --> 
-  sql_expression(L,LT),
-  syntax_check_expr_type(L,LT,string(_)),
-  optional_op(not,NOT),
-  cmd(like)                           # 'LIKE',
-  sql_expression(R,RT),
-  syntax_check_expr_type(R,RT,string(_)),
-  cmd(escape)                         # 'ESCAPE',
-  sql_expression(E,ET),
-  syntax_check_expr_type(E,ET,string(_)),
-  {(NOT==true -> F='$not_like'(L,R,E) ; F='$like'(L,R,E))}.*/
-cond_factor(C) --> 
-  sql_expression(L,_LT), 
-  relop(Op)                           # 'comparison operator', 
-  sql_expression(R,_RT),
-  {sql_rel_cond_factor(Op,L,R,C)}.
-  %syntax_check_same_types(C,LT,RT).
-cond_factor(true) --> 
-  {current_db(_,mysql)},
-  sql_constant(_C).
-
-/*
-sql_rel_cond_factor(OpMod,L,SQLst,CF) :-
-  (atom_concat(_Op,'_all',OpMod), MOD='ALL'
-  ;
-    atom_concat(_Op,'_any',OpMod), MOD='ANY'
-  ),
-  !,
-  (SQLst=(select(_D,_T,_Of,Es,_Ts,_F,_W,_G,_H,_O),_As)
-    ->
-    (Es=[expr(_E,_A,_Ty)]
-      ->
-      CF=..[OpMod,L,SQLst]
-      ;
-      my_raise_exception(generic,syntax(['Only one expression allowed the SELECT list of the subquery in the ',MOD,' condition.']),[])
-    )
-    ;
-    my_raise_exception(generic,syntax(['Unsupported subquery in the ALL condition.']),[])
-    ).*/
-
-sql_rel_cond_factor(Op,L,R,CF) :-
-  CF=..[Op,L,R].
-
-relop(RO) --> 
-  set_op(RO).
-relop(RO) --> 
-  tuple_op(RO).
-
-set_op(SO) -->
-  tuple_op(TO),
-  cmd(all)                            # 'all',
-  {atom_concat(TO,'_all',SO)}.
-set_op(SO) -->
-  tuple_op(TO),
-  cmd(any)                            # 'any',
-  {atom_concat(TO,'_any',SO)}.
-  
-tuple_op(RO) --> 
-  comparisonOp(RO)                    # 'a comparison operator'.
-
-/*syntax_check_same_types(_E,_LT,_RT) -->
-  {type_casting(on),
-    !}.
-syntax_check_same_types(E,LT,RT) -->
-  {nonvar(LT),
-   nonvar(RT),
-   !},
-  push_syntax_error(['Expected same types in ','$exec'(write_sql_cond(E,0,'$des'))],Old),
-  {LT=RT}.
-syntax_check_same_types(_E,_LT,_RT) -->
-  [].
-
-syntax_check_between(cte(CteL,TypeL),cte(CteR,TypeR)) -->
-  {!,
-    (compute_comparison_primitive(CteL=<CteR,CteL=<CteR)
-    ->
-      true
-    ;
-    my_raise_exception(generic,syntax(['First constant in BETWEEN (','$exec'(write_expr(cte(CteL,TypeL))), ') must be less than or equal to the second one (','$exec'(write_expr(cte(CteR,TypeR))),')']),[]))
-  }.
-syntax_check_between(_L,_R) -->
-  [].
-
-syntax_check_expr_type(L,LT,ET) -->
-  {nonvar(LT),
-    nonvar(ET),
-    !},
-  {internal_typename_to_user_typename(ET,UET)},
-  push_syntax_error(['Expected ',UET,' type in ','$exec'(write_expr(L))],Old),
-  {LT=ET},
-  pop_syntax_error(Old).
-syntax_check_expr_type(_L,_LT,_ET) -->
-  [].
-
-column_or_constant_tuple(Cs,A) --> 
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_proj_expression_sequence(Cs),
-  punct(')')                          # 'closing parenthesis '')''',
-  {length(Cs,A)}.
-column_or_constant_tuple([C],1) --> 
-  sql_proj_expression(C,_AS).
-
-sql_proj_expression_sequence([C,C2|Cs]) -->
-  sql_proj_expression(C,_),
-  punct(',')                          # 'comma',
-  {!}, % 23-01-2021
-  sql_proj_expression_sequence([C2|Cs]).
-sql_proj_expression_sequence([C]) -->
-  sql_proj_expression(C,_).
-*/
-
-%TODO none
-sql_proj_expression(expr(E,AS,Type),AS) -->
-  sql_expression(E,Type).
 
 /*
 dql_or_constant_tuples(_A,R) -->
@@ -616,141 +509,6 @@ args_to_exprs([],[]).
 args_to_exprs([C|Cs],[expr(C,_,_)|Es]) :-
   args_to_exprs(Cs,Es).*/
 
-
-sql_factor(E,T) -->
-  [punct('('):_],
-  sql_expression(E,T),
-  punct(')')                          # 'closing parenthesis '')''',
-  {!}. % WARNING: This whole clause is only for improving parsing performance
-sql_factor(E,_) --> % :::WARNING: Add type info
-  dqlStmt([E|STs]/STs)                  # 'valid DQL statement',
-  !.
-/*sql_factor(Aggr,T) -->
-  sql_special_aggregate_function(Aggr,T),
-  !.  % WARNING: This cut is only for improving parsing performance*/
-/*sql_factor(FAs,T) --> 
-  { my_function(SF,F,Arity,[T|Ts]),
-    Arity>0},
-  fn(SF)                              # SF,
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_function_arguments(Arity,As,Ts),
-  punct(')')                          # 'closing parenthesis '')''',
-  { FAs=..[F|As]}.
-sql_factor(Function,number(_)) -->
-  cmd(extract)                        # 'EXTRACT',
-  punct('(')                          # 'opening parenthesis ''(''',
-  extract_field(Field)                # 'valid datetime field (year, month, day, hour, minute, second)',
-  cmd(from)                           # 'FROM',
-  sql_expression(C,datetime(_))       # 'valid datetime expression',  
-  punct(')')                          # 'closing parenthesis '')''',
-  {Function=..[Field,C],
-    !}.
-sql_factor(cast(Factor,Type),Type) -->
-  fn(cast)                            # 'CAST',
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_factor(Factor,_),
-  cmd(as)                             # 'AS',
-  sql_type(Type)                      # 'valid type name',  
-  punct(')')                          # 'closing parenthesis '')'''.
-sql_factor(coalesce(ExprSeq),_Type) -->
-  fn(coalesce)                        # 'COALESCE',
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_expr_sequence(ExprSeq),
-  punct(')')                          # 'closing parenthesis '')'''.
-sql_factor(greatest(ExprSeq),_Type) -->
-  fn(greatest)                        # 'GREATEST',
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_expr_sequence(ExprSeq),
-  punct(')')                          # 'closing parenthesis '')'''.
-sql_factor(least(ExprSeq),_Type) -->
-  fn(least)                           # 'LEAST',
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_expr_sequence(ExprSeq),
-  punct(')')                          # 'closing parenthesis '')'''.
-sql_factor(iif(Cond,Expr1,Expr2),_Type) -->
-  fn(iif)                             # 'IIF',
-  punct('(')                          # 'opening parenthesis ''(''',
-  sql_condition(Cond)                 # 'valid condition',
-  punct(',')                          # 'comma',
-  sql_expression(Expr1,_T1)           # 'valid expression', 
-  punct(',')                          # 'comma',
-  sql_expression(Expr2,_T2)           # 'valid expression', 
-  punct(')')                          # 'closing parenthesis '')'''.
-sql_factor(case(CondValList,Default),Type) -->
-  cmd(case)                           # 'CASE',
-  sql_case2_when_thens(CondValList),
-  sql_case_else_end(Default,Type).
-sql_factor(case(Expr,ExprValList,Default),Type) -->
-  cmd(case)                           # 'CASE',
-  sql_expression(Expr,_T)             # 'expression', 
-  sql_case3_when_thens(ExprValList),
-  sql_case_else_end(Default,Type).*/
-sql_factor(cte(C,T),T) -->
-  sql_constant(cte(C,T)).
-sql_factor(C,_) -->
-  column(C).
-/*sql_factor(F,T) --> 
-  {my_function(SF,F,Type,0,[T]),
-    Type\==aggregate % 0-arity aggregate functions from Datalog are not allowed in SQL
-    },
-  fn(SF)                              # SF,
-  optional_parentheses.*/
-
-
-/*  
-% Aggr(DISTINCT Column)
-sql_special_aggregate_function(AF,T) -->
-  {my_aggregate_function(_,PF,T,1),
-   atom_concat(F,'_distinct',PF),
-   atom_codes(F,SF),
-   to_uppercase_char_list(SF,USF)},
-  my_kw(USF), 
-  push_syntax_error(['Expected left bracket ''('''],Old1),
-  my_sql_blanks_star,
-  "(",
-  pop_syntax_error(Old1),
-  my_sql_blanks_star,
-  my_kw("DISTINCT"),
-  my_sql_blanks,
-  my_column(C),
-  push_syntax_error(['Expected right bracket '')'''],Old2),
-  my_sql_blanks_star,
-  ")",
-  pop_syntax_error(Old2),
-  {AF=..[PF,C]}.
-*/
-
-%column_name_list(columnList)\\
-%column_name separate with comma
-column_name_list([C]) --> 
-  untyped_column(C).
-column_name_list([C|Cs]) -->
-  untyped_column(C),
-  punct(',')                          # 'comma', 
-  !,
-  column_name_list(Cs).
-
-untyped_column(C) --> 
-  colname(C).
-
-p_ren_tablename(T) --> 
-  ren_tablename(T),
-  !.
-
-p_ren_tablename((T, none)) -->
-  tablename(T)                        # 'table name',
-  !.
-
-ren_tablename((T,[I|Args])) -->
-  current_position(Position),
-  tablename(T)                        # 'table name',
-  optional_cmd(as),
-  sql_user_identifier(I)              # 'user identifier',
-  !,
-  {(my_table('$des',T,A) -> length(Args,A);
-  set_error_with_parameter('Semantic', 'Table ~w does not exist in the $des system' , [T], Position),
-  !, fail)}.
-
 %To obtain the arity (the number of attributes or columns) of a 
 %relation (table or view) in the database.
 get_relation_arity(Relation,Arity) :-
@@ -762,25 +520,6 @@ get_relation_arity('$des',Relation,Arity) :-
   my_table('$des',Relation,Arity). % Both tables and views
 get_relation_arity(Connection,Relation,Arity) :-
   my_odbc_get_table_arity(Connection,Relation,Arity).
-
-%insert_values(Arity, Values)
-insert_values(L,Vs) -->
-  cmd(default)                        # 'DEFAULT',
-  cmd(values)                         # 'VALUES',
-  {!,
-  length(Vs,L),
-  my_map_1('='(default),Vs)}.
-
-insert_values(L, Ts) -->
-  cmd(values)                         # 'VALUES',
-  !,
-  sql_ground_tuple_list(L,Ts).
-
-insert_values(_L, select()) -->
-  dqlStmt([select()|STs]/STs).
-
-insert_values(_,_) -->
-  set_error('Syntax', 'VALUES, select statement, or DEFAULT VALUES').
 
 %get_table_untyped_arguments
 get_table_untyped_arguments(TableName,Colnames) :-
@@ -813,7 +552,7 @@ remaining_sql_ground_tuple_list(_,[]) -->
 
 sql_ground_tuple(L,Cs) -->
   current_position(Position),
-  punct('(')                          # 'opening parenthesis',
+  punct('(')                          # 'opening parenthesis ''(''',
   sql_constants(Cs),
   punct(')')                          # 'closing parenthesis or comma',
   !,
@@ -958,6 +697,9 @@ sql_type(datetime(date)) -->
 sql_type(datetime(time)) -->
   cmd(time)                           # 'TIME'.
 
+sql_type(_) -->
+  set_error('Syntax', 'valid type').
+
 sql_float_type_id -->
   cmd(real)                           # 'REAL'.
 sql_float_type_id -->
@@ -1033,10 +775,10 @@ sql_constant(_) -->
 
 %date_constant
 sql_date_constant(cte(date(Y,M,D),datetime(date))) -->
-  cmd(date)                              # 'DATE',
+  cmd(date)                           # 'DATE',
   optional_cmd(bc,BC),
   current_position(Position),
-  value(str(C))                          # 'string',
+  value(str(C))                       # 'string',
   !,
   { 
     string_chars(C, Chars),
@@ -1109,6 +851,9 @@ adjust_year(false, YRaw, Y) :- Y is YRaw.
 % SQL Condition
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% BWhereCondition ::=
+%   (WhereCondition)
+
 sql_condition(F) -->
   sql_condition(1200,F).
     
@@ -1153,6 +898,180 @@ b_sql_condition(SQLst) -->
   sql_condition(SQLst),
   punct(')')                          # 'closing parenthesis '')'''.
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SQL Condition Factor
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% BWhereCondition ::=
+%   (WhereCondition)
+
+% UBWhereCondition ::=
+%   TRUE
+%   |
+%   FALSE
+%   |
+%   EXISTS DQLstmt
+%   |
+%   NOT (WhereCondition)
+%   |
+%   (AttOrCte{,AttOrCte}) [NOT] IN [DQLstmt|(Cte{,Cte})|((Cte{,Cte}){,(Cte{,Cte})})]  % Extension for lists of tuples 
+%   |
+%   WhereExpression IS [NOT] NULL
+%   |
+%   WhereExpression [NOT] IN DQLstmt
+%   |
+%   WhereExpression ComparisonOp [[ALL|ANY]] WhereExpression 
+%   |
+%   WhereCondition [AND|OR|XOR] WhereCondition
+%   |
+%   WhereExpression BETWEEN WhereExpression AND WhereExpression
+
+cond_factor(E) -->
+  b_sql_condition(E).
+cond_factor(true) --> 
+  cmd(true)                           # 'TRUE',
+  !.
+cond_factor(false) --> 
+  cmd(false)                          # 'FALSE',
+  !.
+cond_factor(is_null(R)) --> 
+  sql_expression(R,_T), 
+  cmd(is), 
+  cmd(null)                           # 'NULL',
+  !.
+cond_factor(not(is_null(R))) --> 
+  sql_expression(R,_T),  
+  cmd(is), 
+  op(not)                             # 'NOT', 
+  cmd(null)                           # 'NULL',
+  !.
+/*cond_factor(exists(select())) -->
+  cmd(exists)                         # 'EXISTS',
+  !,
+  opening_parentheses_star(N),
+  dqlStmt([select()|STs]/STs)         # 'valid SELECT statement',
+  closing_parentheses_star(N).
+cond_factor(and('<='(L,C),'<='(C,R))) --> 
+  sql_expression(C,_CT),
+  cmd(between)                        # 'BETWEEN',
+  sql_expression(L,_LT),
+  %syntax_check_same_types('BETWEEN test',CT,LT),
+  op(and)                             # 'AND',
+  sql_expression(R,_RT),
+  %syntax_check_same_types('BETWEEN test',LT,RT),
+  syntax_check_between(L,R).
+cond_factor(or('>'(L,C),'>'(C,R))) --> 
+  sql_expression(C,_CT),
+  op(not)                             # 'NOT',
+  cmd(between)                        # 'BETWEEN',         
+  sql_expression(L,_LT),
+  %syntax_check_same_types('BETWEEN test',CT,LT),
+  op(and)                             # 'AND',
+  sql_expression(R,_RT),
+  %syntax_check_same_types('BETWEEN test',LT,RT),
+  syntax_check_between(L,R).
+cond_factor(in(L,R)) --> 
+  column_or_constant_tuple(L,A),
+  cmd(in),
+  opening_parentheses_star(N),
+  dql_or_constant_tuples(A,R),
+  closing_parentheses_star(N).
+cond_factor(not_in(L,R)) --> 
+  column_or_constant_tuple(L,A),
+  op(not)                             # 'NOT',
+  cmd(in)                             # 'IN',
+  opening_parentheses_star(N),
+  dql_or_constant_tuples(A,R),
+  closing_parentheses_star(N).
+cond_factor(F) --> 
+  sql_expression(L,LT),
+  syntax_check_expr_type(L,LT,string(_)),
+  optional_op(not,NOT),
+  cmd(like)                           # 'LIKE',
+  sql_expression(R,RT),
+  syntax_check_expr_type(R,RT,string(_)),
+  {(NOT==true -> F='$not_like'(L,R) ; F='$like'(L,R))}.
+cond_factor(F) --> 
+  sql_expression(L,LT),
+  syntax_check_expr_type(L,LT,string(_)),
+  optional_op(not,NOT),
+  cmd(like)                           # 'LIKE',
+  sql_expression(R,RT),
+  syntax_check_expr_type(R,RT,string(_)),
+  cmd(escape)                         # 'ESCAPE',
+  sql_expression(E,ET),
+  syntax_check_expr_type(E,ET,string(_)),
+  {(NOT==true -> F='$not_like'(L,R,E) ; F='$like'(L,R,E))}.*/
+cond_factor(C) --> 
+  sql_expression(L,_LT), 
+  relop(Op)                           # 'comparison operator', 
+  sql_expression(R,_RT),
+  {sql_rel_cond_factor(Op,L,R,C)}.
+  %syntax_check_same_types(C,LT,RT).
+cond_factor(true) --> 
+  {current_db(_,mysql)},
+  sql_constant(_C).
+
+/*
+sql_rel_cond_factor(OpMod,L,SQLst,CF) :-
+  (atom_concat(_Op,'_all',OpMod), MOD='ALL'
+  ;
+    atom_concat(_Op,'_any',OpMod), MOD='ANY'
+  ),
+  !,
+  (SQLst=(select(_D,_T,_Of,Es,_Ts,_F,_W,_G,_H,_O),_As)
+    ->
+    (Es=[expr(_E,_A,_Ty)]
+      ->
+      CF=..[OpMod,L,SQLst]
+      ;
+      my_raise_exception(generic,syntax(['Only one expression allowed the SELECT list of the subquery in the ',MOD,' condition.']),[])
+    )
+    ;
+    my_raise_exception(generic,syntax(['Unsupported subquery in the ALL condition.']),[])
+    ).*/
+
+column_or_constant_tuple(Cs,A) --> 
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_proj_expression_sequence(Cs),
+  punct(')')                          # 'closing parenthesis '')''',
+  {length(Cs,A)}.
+column_or_constant_tuple([C],1) --> 
+  sql_proj_expression(C,_AS).
+
+sql_proj_expression_sequence([C,C2|Cs]) -->
+  sql_proj_expression(C,_),
+  punct(',')                          # 'comma',
+  {!}, % 23-01-2021
+  sql_proj_expression_sequence([C2|Cs]).
+sql_proj_expression_sequence([C]) -->
+  sql_proj_expression(C,_).
+
+%TODO none
+sql_proj_expression(expr(E,AS,Type),AS) -->
+  sql_expression(E,Type).
+
+sql_rel_cond_factor(Op,L,R,CF) :-
+  CF=..[Op,L,R].
+
+relop(RO) --> 
+  set_op(RO).
+relop(RO) --> 
+  tuple_op(RO).
+
+set_op(SO) -->
+  tuple_op(TO),
+  cmd(all)                            # 'all',
+  {atom_concat(TO,'_all',SO)}.
+set_op(SO) -->
+  tuple_op(TO),
+  cmd(any)                            # 'any',
+  {atom_concat(TO,'_any',SO)}.
+  
+tuple_op(RO) --> 
+  comparisonOp(RO)                    # 'a comparison operator'.
+  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SQL Expressions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1208,65 +1127,264 @@ r_sql_expression(PP,Pi,Li/Lo,Ti/To) -->
 r_sql_expression(_,_,Li/Li,Ti/Ti) -->
   [].
 
-/*
-% num_expression(-Expression)//
-num_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_num_expression(Expression)}.
 
-% int_expression(-Expression)//
-int_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_int_expression(Expression)}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SQL Expressions Factor
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% nat_expression(-Expression)//
-nat_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_nat_expression(Expression)}.
+% Expression ::=
+%   Op1 Expression
+%   |
+%   Expression Op2 Expression
+%   |
+%   Function(Expression{, Expression})
+%   |
+%   Att
+%   |
+%   RelationName.Att
+%   |
+%   Cte
+%   |
+%   DQLstmt
 
-% bool_expression(-Expression)//
-bool_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_bool_expression(Expression)}.
+sql_factor(E,T) -->
+  punct('(')                            # 'opening parenthesis ''(''',
+  sql_expression(E,T),
+  punct(')')                            # 'closing parenthesis '')''',
+  {!}. % WARNING: This whole clause is only for improving parsing performance
+sql_factor(E,_) --> % :::WARNING: Add type info
+  dqlStmt([E|STs]/STs)                  # 'valid DQL statement',
+  !.
+/*sql_factor(Aggr,T) -->
+  sql_special_aggregate_function(Aggr,T),
+  !.  % WARNING: This cut is only for improving parsing performance*/
+/*sql_factor(FAs,T) --> 
+  { my_function(SF,F,Arity,[T|Ts]),
+    Arity>0},
+  fn(SF)                              # SF,
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_function_arguments(Arity,As,Ts),
+  punct(')')                          # 'closing parenthesis '')''',
+  { FAs=..[F|As]}.
+sql_factor(Function,number(_)) -->
+  cmd(extract)                        # 'EXTRACT',
+  punct('(')                          # 'opening parenthesis ''(''',
+  extract_field(Field)                # 'valid datetime field (year, month, day, hour, minute, second)',
+  cmd(from)                           # 'FROM',
+  sql_expression(C,datetime(_))       # 'valid datetime expression',  
+  punct(')')                          # 'closing parenthesis '')''',
+  {Function=..[Field,C],
+    !}.
+sql_factor(cast(Factor,Type),Type) -->
+  fn(cast)                            # 'CAST',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_factor(Factor,_),
+  cmd(as)                             # 'AS',
+  sql_type(Type)                      # 'valid type name',  
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(coalesce(ExprSeq),_Type) -->
+  fn(coalesce)                        # 'COALESCE',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_expr_sequence(ExprSeq),
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(greatest(ExprSeq),_Type) -->
+  fn(greatest)                        # 'GREATEST',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_expr_sequence(ExprSeq),
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(least(ExprSeq),_Type) -->
+  fn(least)                           # 'LEAST',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_expr_sequence(ExprSeq),
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(iif(Cond,Expr1,Expr2),_Type) -->
+  fn(iif)                             # 'IIF',
+  punct('(')                          # 'opening parenthesis ''(''',
+  sql_condition(Cond)                 # 'valid condition',
+  punct(',')                          # 'comma',
+  sql_expression(Expr1,_T1)           # 'valid expression', 
+  punct(',')                          # 'comma',
+  sql_expression(Expr2,_T2)           # 'valid expression', 
+  punct(')')                          # 'closing parenthesis '')'''.
+sql_factor(case(CondValList,Default),Type) -->
+  cmd(case)                           # 'CASE',
+  sql_case2_when_thens(CondValList),
+  sql_case_else_end(Default,Type).
+sql_factor(case(Expr,ExprValList,Default),Type) -->
+  cmd(case)                           # 'CASE',
+  sql_expression(Expr,_T)             # 'expression', 
+  sql_case3_when_thens(ExprValList),
+  sql_case_else_end(Default,Type).*/
+sql_factor(cte(C,T),T) -->
+  sql_constant(cte(C,T)).
+sql_factor(C,_) -->
+  column(C).
+/*sql_factor(F,T) --> 
+  {my_function(SF,F,Type,0,[T]),
+    Type\==aggregate % 0-arity aggregate functions from Datalog are not allowed in SQL
+    },
+  fn(SF)                              # SF,
+  optional_parentheses.*/
 
-% str_expression(-Expression)//
-str_expression(Expression) -->
-  expr(Expression),
-  !,
-  {is_str_expression(Expression)}.
 
-% is_num_expression(+Expression)
-is_num_expression(Expression) :- % REFINE. Naive test
-  Expression \= str(_).
-
-% is_str_expression(+Expression)
-is_str_expression(Expression) :- % REFINE. Naive test
-  Expression \= int(_),
-  Expression \= frac(_, _),
-  Expression \= float(_, _, _).
-
-% is_bool_expression(+Expression)
-is_bool_expression(Expression) :- % REFINE. Naive test
-  is_int_expression(Expression).
-
-% is_int_expression(+Expression)
-is_int_expression(Expression) :-  % REFINE. Naive test
-  Expression \= str(_),
-  Expression \= frac(_, _),
-  Expression \= float(_, _, _).
-
-% is_nat_expression(+Expression)
-is_nat_expression(Expression) :- % REFINE. Naive test
-  is_int_expression(Expression).
+/*  
+% Aggr(DISTINCT Column)
+sql_special_aggregate_function(AF,T) -->
+  {my_aggregate_function(_,PF,T,1),
+    atom_concat(F,'_distinct',PF),
+    atom_codes(F,SF),
+    to_uppercase_char_list(SF,USF)},
+  my_kw(USF), 
+  push_syntax_error(['Expected left bracket ''('''],Old1),
+  my_sql_blanks_star,
+  "(",
+  pop_syntax_error(Old1),
+  my_sql_blanks_star,
+  my_kw("DISTINCT"),
+  my_sql_blanks,
+  my_column(C),
+  push_syntax_error(['Expected right bracket '')'''],Old2),
+  my_sql_blanks_star,
+  ")",
+  pop_syntax_error(Old2),
+  {AF=..[PF,C]}.
 */
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Column   tablename viewname colname relname 
+% Column and Table Constraint
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% column constraint
+column_constraint(C,not_nullables([C])) -->
+  op(not)                             # 'NOT',
+  cmd(null)                           # 'NULL',
+  !. 
+column_constraint(_C,true) -->
+  cmd(null)                           # 'NULL',
+  !.
+column_constraint(C,primary_key([C])) -->
+  cmd(primary)                        # 'PRIMARY',
+  cmd(key)                            # 'KEY',
+  !.
+column_constraint(C,candidate_key([C])) -->
+  cmd(unique)                         # 'UNIQUE',
+  !.
+column_constraint(C,foreign_key([C],TableName,[TC])) -->
+  cmd(references)                     # 'REFERENCES', 
+  referenced_column(C,TableName,TC),
+  optional_referential_triggered_action(_Rule),
+  !.
+column_constraint(C,default(C,Expression,Type)) -->
+  cmd(default)                        # 'DEFAULT',
+  sql_expression(Expression,Type)     # 'expression',
+  !.
+column_constraint(_C,CheckCtr) -->
+  cmd(check)                          # 'CHECK',
+  opening_parentheses_star(N),
+  check_constraint(CheckCtr)          # 'valid check constraint',
+  closing_parentheses_star(N),
+  !.
+column_constraint(C,candidate_key([C])) -->
+  cmd(candidate)                      # 'CANDIDATE',
+  cmd(key)                            # 'KEY',
+  !.
+column_constraint(C,fd([Att],[C])) -->
+  cmd(determined)                     # 'DETERMINED',
+  cmd(by)                             # 'BY',
+  untyped_column(Att)                 # 'a column name',
+  !.
+
+column_constraint(_,_) -->
+  set_error('Syntax', 'valid column constraint (NOT, NULL, PRIMARY, UNIQUE, REFERENCES, DEFAULT, CHECK, CANDIDATE, DETERMINED)').
+
+
+% table constraint
+table_constraint(not_nullables(Cs)) -->
+  op(not)                             # 'NOT',
+  cmd(null)                           # 'NULL',
+  column_tuple(Cs)                    # 'a column sequence between parentheses',
+  !.
+table_constraint(primary_key(Cs)) -->
+  cmd(primary)                        # 'PRIMARY',
+  cmd(key)                            # 'KEY',
+  column_tuple(Cs)                    # 'a column sequence between parentheses',
+  !.
+table_constraint(candidate_key(Cs)) -->
+  cmd(unique)                         # 'UNIQUE',
+  column_tuple(Cs)                    # 'a column sequence between parentheses',
+  !.
+table_constraint(foreign_key(Cs,FTableName,FCs)) -->
+  cmd(foreign)                        # 'FOREIGN',
+  cmd(key)                            # 'KEY',
+  column_tuple(Cs)                    # 'a column sequence between parentheses',
+  cmd(references)                     # 'REFERENCES', 
+  tablename(FTableName)               # 'table name',
+  column_tuple(FCs)                    # 'a column sequence between parentheses',
+  optional_referential_triggered_action(_Rule),
+  !.
+table_constraint(foreign_key(Cs,FTableName,Cs)) -->
+  cmd(foreign)                        # 'FOREIGN',
+  cmd(key)                            # 'KEY',
+  column_tuple(Cs)                    # 'a column sequence between parentheses',
+  cmd(references)                     # 'REFERENCES', 
+  tablename(FTableName)               # 'table name',
+  optional_referential_triggered_action(_Rule),
+  !.
+table_constraint(CheckCtr) -->
+  cmd(check)                          # 'CHECK',
+  opening_parentheses_star(N),
+  check_constraint(CheckCtr)       # 'check constraint',
+  closing_parentheses_star(N),
+  !.
+table_constraint(candidate_key(Cs)) -->
+  cmd(candidate)                      # 'CANDIDATE',
+  cmd(key)                            # 'KEY',
+  column_tuple(Cs)                    # 'a column sequence between parentheses',
+  !.
+
+table_constraint(_) -->
+  set_error('Syntax', 'valid table constraint (NOT, PRIMARY, UNIQUE, FOREIGN, CHECK, CANDIDATE)').
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Column  ColumnNnameList tablename viewname colname relname 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+column_tuple(Ts) -->
+  punct('(')                          # 'opening parenthesis ''(''',
+  column_name_list(Ts)                # 'a sequence of column names',
+  punct(')')                          # 'closing parenthesis '')'''.
+
+%column_name_list(columnList)
+%column_name separate with comma
+column_name_list([C]) --> 
+  untyped_column(C).
+column_name_list([C|Cs]) -->
+  untyped_column(C),
+  punct(',')                          # 'comma', 
+  !,
+  column_name_list(Cs).
+
+untyped_column(C) --> 
+  colname(C).
+
+p_ren_tablename(T) --> 
+  ren_tablename(T),
+  !.
+
+p_ren_tablename((T, none)) -->
+  tablename(T)                        # 'table name',
+  !.
+
+ren_tablename((T,[I|Args])) -->
+  current_position(Position),
+  tablename(T)                        # 'table name',
+  optional_cmd(as),
+  sql_user_identifier(I)              # 'user identifier',
+  !,
+  {(my_table('$des',T,A) -> length(Args,A);
+  set_error_with_parameter('Semantic', 'Table ~w does not exist in the $des system' , [T], Position),
+  !, fail)}.
 
 %column rel_id.col_id/col_id
 column(attr(R,C,none)) --> 
@@ -1306,6 +1424,52 @@ sql_user_identifier(Name) -->
 sql_user_identifier(Name) -->
   [id(Name):_Pos].
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Syntax check
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+/*syntax_check_redef(Schema) -->
+  {functor(Schema,F,A),
+   datalog_keyword(F,A),
+   my_raise_exception(generic,syntax(['Trying to redefine the builtin "',F,'"']),[])
+  }.
+syntax_check_redef(_Schema) -->
+  [].*/
+
+/*syntax_check_same_types(_E,_LT,_RT) -->
+  {type_casting(on),
+    !}.
+syntax_check_same_types(E,LT,RT) -->
+  {nonvar(LT),
+   nonvar(RT),
+   !},
+  push_syntax_error(['Expected same types in ','$exec'(write_sql_cond(E,0,'$des'))],Old),
+  {LT=RT}.
+syntax_check_same_types(_E,_LT,_RT) -->
+  [].
+
+syntax_check_between(cte(CteL,TypeL),cte(CteR,TypeR)) -->
+  {!,
+    (compute_comparison_primitive(CteL=<CteR,CteL=<CteR)
+    ->
+      true
+    ;
+    my_raise_exception(generic,syntax(['First constant in BETWEEN (','$exec'(write_expr(cte(CteL,TypeL))), ') must be less than or equal to the second one (','$exec'(write_expr(cte(CteR,TypeR))),')']),[]))
+  }.
+syntax_check_between(_L,_R) -->
+  [].
+
+syntax_check_expr_type(L,LT,ET) -->
+  {nonvar(LT),
+    nonvar(ET),
+    !},
+  {internal_typename_to_user_typename(ET,UET)},
+  push_syntax_error(['Expected ',UET,' type in ','$exec'(write_expr(L))],Old),
+  {LT=ET},
+  pop_syntax_error(Old).
+syntax_check_expr_type(_L,_LT,_ET) -->
+  [].*/
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Auxilliary predicates

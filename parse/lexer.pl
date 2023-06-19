@@ -347,6 +347,7 @@ command('as')                               -->> lc("as"),                      
 command('between')                          -->> lc("between"),                          not_more_char,  !,  add_col(7).
 command('bc')                               -->> lc("bc"),                               not_more_char,  !,  add_col(2).   %for date string             
 command('by')                               -->> lc("by"),                               not_more_char,  !,  add_col(2).   
+command('candidate')                        -->> lc("candidate"),                        not_more_char,  !,  add_col(9).                         
 command('cascade')                          -->> lc("cascade"),                          not_more_char,  !,  add_col(7).                         
 command('case')                             -->> lc("case"),                             not_more_char,  !,  add_col(4).            
 command('character')                        -->> lc("character"),                        not_more_char,  !,  add_col(9).           
@@ -367,6 +368,7 @@ command('delete')                           -->> lc("delete"),                  
 command('descending')                       -->> lc("descending"),                       not_more_char,  !,  add_col(10).   
 command('desc')                             -->> lc("desc"),                             not_more_char,  !,  add_col(4).        
 command('describe')                         -->> lc("describe"),                         not_more_char,  !,  add_col(8).  
+command('determined')                       -->> lc("determined"),                       not_more_char,  !,  add_col(10).  
 command('distinct')                         -->> lc("distinct"),                         not_more_char,  !,  add_col(8).             
 command('drop')                             -->> lc("drop"),                             not_more_char,  !,  add_col(4).       
 command('else')                             -->> lc("else"),                             not_more_char,  !,  add_col(4).       
@@ -391,7 +393,8 @@ command('integer')                          -->> lc("integer"),                 
 command('int')                              -->> lc("int"),                              not_more_char,  !,  add_col(3).       
 command('in')                               -->> lc("in"),                               not_more_char,  !,  add_col(2).       
 command('is')                               -->> lc("is"),                               not_more_char,  !,  add_col(2).            
-command('join')                             -->> lc("join"),                             not_more_char,  !,  add_col(4).        
+command('join')                             -->> lc("join"),                             not_more_char,  !,  add_col(4).   
+command('key')                              -->> lc("key"),                              not_more_char,  !,  add_col(3).             
 command('like')                             -->> lc("like"),                             not_more_char,  !,  add_col(4).            
 command('natural')                          -->> lc("natural"),                          not_more_char,  !,  add_col(7).           
 command('no')                               -->> lc("no"),                               not_more_char,  !,  add_col(2).       
@@ -402,13 +405,13 @@ command('offset')                           -->> lc("offset"),                  
 command('only')                             -->> lc("only"),                             not_more_char,  !,  add_col(4).       
 command('on')                               -->> lc("on"),                               not_more_char,  !,  add_col(2).       
 command('order')                            -->> lc("order"),                            not_more_char,  !,  add_col(5).
-command('or')                               -->> lc("or"),                               not_more_char,  !,  add_col(2).              
 command('outer')                            -->> lc("outer"),                            not_more_char,  !,  add_col(5).                
 command('primary')                          -->> lc("primary"),                          not_more_char,  !,  add_col(7).       
 command('real')                             -->> lc("real"),                             not_more_char,  !,  add_col(4).       
 command('recursive')                        -->> lc("recursive"),                        not_more_char,  !,  add_col(9).       
 command('references')                       -->> lc("references"),                       not_more_char,  !,  add_col(10).    
 command('rename')                           -->> lc("rename"),                           not_more_char,  !,  add_col(6).     
+command('replace')                          -->> lc("replace"),                          not_more_char,  !,  add_col(7).
 command('restrict')                         -->> lc("restrict"),                         not_more_char,  !,  add_col(8).           
 command('rollback')                         -->> lc("rollback"),                         not_more_char,  !,  add_col(8).       
 command('rows')                             -->> lc("rows"),                             not_more_char,  !,  add_col(4).       
@@ -465,7 +468,7 @@ function('day'/1)                   -->> lc("day"),                      not_mor
 function('hour'/1)                  -->> lc("hour"),                     not_more_char, !, add_col(4).
 function('minute'/1)                -->> lc("minute"),                   not_more_char, !, add_col(6).
 function('second'/1)                -->> lc("second"),                   not_more_char, !, add_col(6).
-function('float'/1)                 -->> lc("float"),                    not_more_char, !, add_col(5).
+%function('float'/1)                 -->> lc("float"),                    not_more_char, !, add_col(5).
 function('integer'/1)               -->> lc("integer"),                  not_more_char, !, add_col(7).
 function('sign'/1)                  -->> lc("sign"),                     not_more_char, !, add_col(4).
 function('gcd'/2)                   -->> lc("gcd"),                      not_more_char, !, add_col(3).
@@ -490,7 +493,7 @@ function('lpad'/3)                  -->> lc("lpad"),                     not_mor
 function('rpad'/2)                  -->> lc("rpad"),                     not_more_char, !, add_col(4).
 function('rpad'/3)                  -->> lc("rpad"),                     not_more_char, !, add_col(4).
 function('instr'/2)                 -->> lc("instr"),                    not_more_char, !, add_col(5).
-function('replace'/3)               -->> lc("replace"),                  not_more_char, !, add_col(7).
+%function('replace'/3)               -->> lc("replace"),                  not_more_char, !, add_col(7).
 function('reverse'/1)               -->> lc("reverse"),                  not_more_char, !, add_col(7).
 function('substr'/3)                -->> lc("substr"),                   not_more_char, !, add_col(6).
 function('upper'/1)                 -->> lc("upper"),                    not_more_char, !, add_col(5).
@@ -894,7 +897,7 @@ test018 :-
   test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select):pos(2,1),op(*):pos(2,8),cmd(from):pos(2,10),id(t):pos(2,15),punct(','):pos(2,16),id(s):pos(2,17),cmd(where):pos(2,19),id(t):pos(2,25),punct('.'):pos(2,26),id(a):pos(2,27),comparisonOp(=):pos(2,28),id(s):pos(2,29),punct('.'):pos(2,30),id(a):pos(2,31),op(and):pos(2,33),id(t):pos(2,37),punct('.'):pos(2,38),id(b):pos(2,39),comparisonOp(=):pos(2,40),id(s):pos(2,41),punct('.'):pos(2,42),id(b):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
 
 test019 :-
-  test(lexer, lex, 'test/test012.sql', [cmd(create):pos(1,1),op(or):pos(1,8),fn(replace/3):pos(1,11),cmd(view):pos(1,19),id(v1_1):pos(1,24),punct('('):pos(1,28),id(a):pos(1,29),punct(')'):pos(1,30),cmd(as):pos(1,32),cmd(select):pos(1,35),id(t1):pos(1,42),punct('.'):pos(1,44),id(a):pos(1,45),cmd(from):pos(1,47),id(v1_2):pos(1,52),id(t1):pos(1,57),punct(','):pos(1,59),id(v2_2):pos(1,60),id(t2):pos(1,65),cmd(where):pos(1,68),id(t1):pos(1,74),punct('.'):pos(1,76),id(a):pos(1,77),comparisonOp(=):pos(1,78),id(t2):pos(1,79),punct('.'):pos(1,81),id(a):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert):pos(3,1),cmd(into):pos(3,8),id(t):pos(3,13),cmd(values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
+  test(lexer, lex, 'test/test012.sql', [cmd(create):pos(1,1),op(or):pos(1,8),cmd(replace):pos(1,11),cmd(view):pos(1,19),id(v1_1):pos(1,24),punct('('):pos(1,28),id(a):pos(1,29),punct(')'):pos(1,30),cmd(as):pos(1,32),cmd(select):pos(1,35),id(t1):pos(1,42),punct('.'):pos(1,44),id(a):pos(1,45),cmd(from):pos(1,47),id(v1_2):pos(1,52),id(t1):pos(1,57),punct(','):pos(1,59),id(v2_2):pos(1,60),id(t2):pos(1,65),cmd(where):pos(1,68),id(t1):pos(1,74),punct('.'):pos(1,76),id(a):pos(1,77),comparisonOp(=):pos(1,78),id(t2):pos(1,79),punct('.'):pos(1,81),id(a):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert):pos(3,1),cmd(into):pos(3,8),id(t):pos(3,13),cmd(values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
 
 test020 :-
   test(lexer, lex, "a1.2", [id(a1):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      
