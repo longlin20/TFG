@@ -192,6 +192,7 @@ my_infix_operator('-',"-",'datetime_sub',[number(integer),datetime(DT),datetime(
 my_raise_exception from des.pl, write_error_log from des_common.pl
 */
 
+
 /*
 :- module(des,[ my_raise_exception/3]).
 

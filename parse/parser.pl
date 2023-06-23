@@ -71,9 +71,9 @@ parse(Tokens, SyntaxTrees) :-
   phrase(parse(SyntaxTrees/[]), Tokens),
   !.
 
- parse(_Tokens, _SyntaxTrees) :-
-   process_error,
-   !, fail.
+parse(_Tokens, _SyntaxTrees) :-
+  process_error,
+  !, fail.
 
 % parse(-STs1/STs)//
 parse(STs/STs) --> empty_program.
@@ -170,53 +170,134 @@ statements(_) -->
 %   |
 %   CompleteSchema := DQLstmt                    % Addition to support HR-SQL syntax 
 
-% DDL Statements
-% CREATE TABLE
-ddlStmt([CRTSchema|STs]/STs) -->
-  create_or_replace(CR),
-  cmd(table)                          # 'TABLE or VIEW',
-  complete_constrained_typed_schema(Schema,Ctrs) # 'typed schema',
-  % syntax_check_redef(Schema),  If attempting to redefine a datalog keyword, exception is thrown.
-  {atom_concat(CR,'_table',CRT),
-  CRTSchema=..[CRT,Schema,Ctrs]},
-  !.
 
-% CREATE TABLE LIKE
-ddlStmt([CRTSchema|STs]/STs) -->
-  create_or_replace(CR),
-  cmd(table)                          # 'TABLE or VIEW',
-  tablename(TableName)                # 'table name',
-  % syntax_check_redef(TableName),  If attempting to redefine a datalog keyword, exception is thrown.
-  opening_parentheses_star(N),
-  cmd(like)                           # 'LIKE',
-  sql_user_identifier(ExistingTableName) # 'table identifier',
-  closing_parentheses_star(N),
-  {atom_concat(CR,'_table_like',CRT),
-   CRTSchema=..[CRT,TableName,ExistingTableName]},
-  !.
+% DDL Statements
 
 % CREATE TABLE AS
 ddlStmt([CRTSchema|STs]/STs) -->
   create_or_replace(CR),
   cmd(table)                          # 'TABLE or VIEW',
-  push_syntax_error(['Expected table schema'],Old2),
-  create_view_schema(Schema),
-  % syntax_check_redef(Schema),  If attempting to redefine a datalog keyword, exception is thrown.
+  create_view_schema(Schema)          # 'table schema',
+  % syntax_check_redef(Schema), %  If attempting to redefine a datalog keyword, exception is thrown.
   opening_parentheses_star(N),
-  cmd(as)                             # 'AS',
-  dqlStmt([(LSQLst,Schema)|STs]/STs)  # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
+  cmd(as)                             # 'AS, or column name',
+  (dqlStmt([(LSQLst,Schema)|STs]/STs) -> {true}; 
+    set_error('Syntax', 'valid SQL DQL statement (SELECT, WITH or ASSUME)')),
   closing_parentheses_star(N),
   {atom_concat(CR,'_table_as',CRT),
-   CRTSchema=..[CRT,(LSQLst,_AS),Schema]},
+   CRTSchema=..[CRT,(LSQLst,none),Schema]},
+  !.
+
+% CREATE TABLE LIKE
+ddlStmt([CRTSchema|STs]/STs) -->
+  create_or_replace(CR),
+  cmd(table)                           # 'TABLE or VIEW',
+  tablename(TableName)                 # 'table name',
+  % syntax_check_redef(TableName), % If attempting to redefine a datalog keyword, exception is thrown.
+  opening_parentheses_star(N),
+  cmd(like)                            # 'AS, LIKE or column name',
+  (tablename(ExistingTableName) -> {true}; 
+    set_error('Syntax', 'valid SQL DDL statement (table name)')),
+  closing_parentheses_star(N),
+  {atom_concat(CR,'_table_like',CRT),
+   CRTSchema=..[CRT,TableName,ExistingTableName]},
+  !.
+
+% CREATE TABLE
+ddlStmt([CRTSchema|STs]/STs) -->
+  create_or_replace(CR),
+  cmd(table)                          # 'TABLE or VIEW',
+  complete_constrained_typed_schema(Schema,Ctrs) # 'typed schema',
+  % syntax_check_redef(Schema), % If attempting to redefine a datalog keyword, exception is thrown.
+  {atom_concat(CR,'_table',CRT),
+  CRTSchema=..[CRT,Schema,Ctrs]},
+  !.
+
+% CREATE VIEW
+ddlStmt([CRVSchema|STs]/STs) -->
+  create_or_replace(CR),
+  cmd(view)                           # 'TABLE or VIEW',
+  create_view_schema(Schema)          # 'view schema',
+  % syntax_check_redef(Schema), % If attempting to redefine a datalog keyword, exception is thrown.
+  cmd(as)                             # 'AS',
+  opening_parentheses_star(N),
+  dqlStmt([(LSQLst,Schema)|STs]/STs)  # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
+  closing_parentheses_star(N),
+  {atom_concat(CR,'_view',CRVF),
+   CRVSchema =.. [CRVF,sql,(LSQLst,none),Schema]},
   !.
 
 % CREATE DATABASE
 ddlStmt([create_database(DBName)|STs]/STs) -->
   cmd(create)                         # 'CREATE',
-  cmd(database)                       # 'TABLE, VIEW or DATABASE',
+  cmd(database)                       # 'OR REPLACE, TABLE, VIEW or DATABASE',
   optional_database_name(DBName)      # 'database name',
   !.
 
+/*
+% ALTER TABLE
+ddlStmt([alter_table(TableName,AD,Element)|STs]/STs) -->
+  cmd(alter)                          # 'ALTER, ADD or DROP',
+  cmd(table)                          # 'TABLE',
+  current_position(Position),
+  tablename(TableName)                # 'table identifier',
+  alter_table_alter_column(AD,TableName,Element),
+  {
+    (exist_table(TableName) -> true; 
+      (set_error_with_parameter('Semantic', 'unknown_table(~w)', [TableName], Position),
+      !, fail))
+  }.
+
+% RENAME TABLE
+ddlStmt([rename_table(TableName,NewTableName)|STs]/STs) -->
+  cmd(rename)                         # 'RENAME',
+  cmd(table)                          # 'TABLE or VIEW',
+  tablename(TableName)                # 'table name',
+  cmd(to)                             # 'TO',
+  tablename(NewTableName)             # 'table name',
+  % syntax_check_redef(NewTableName),  % If attempting to redefine a datalog keyword, exception is thrown.
+  !.
+
+% RENAME VIEW
+ddlStmt([rename_view(Viewname,NewViewname)|STs]/STs) -->
+  cmd(rename)                         # 'RENAME',
+  cmd(view)                           # 'TABLE or VIEW',
+  viewname(Viewname)                  # 'view identifier',
+  cmd(to)                             # 'TO',
+  viewname(NewViewname)               # 'view identifier',
+  % syntax_check_redef(NewViewname),  % If attempting to redefine a datalog keyword, exception is thrown.
+  !.
+
+% DROP TABLE
+ddlStmt([drop_table(Name,Clauses)|STs]/STs) -->
+  cmd(drop)                           # 'DROP',
+  cmd(table)                          # 'TABLE, VIEW or DATABASE',
+  optional_drop_clauses(table,Clauses1),
+  tablename(Name)                     # 'table name',
+  optional_drop_clauses(table,Clauses2),
+  !,
+  {append(Clauses1,Clauses2,Clauses)}.
+
+% DROP VIEW
+ddlStmt([drop_view(Name,Clauses)|STs]/STs) -->
+  cmd(drop)                           # 'DROP',
+  cmd(view)                           # 'TABLE, VIEW or DATABASE',
+  optional_drop_clauses(view,Clauses1),
+  viewname(Name)                      # 'view name',
+  optional_drop_clauses(view,Clauses2),
+  !,
+  {append(Clauses1,Clauses2,Clauses)}.
+
+% DROP SCHEMA
+ddlStmt([drop_database(DBName)|STs]/STs) -->
+  cmd(drop)                           # 'DROP',
+  cmd(database)                       # 'TABLE, VIEW or DATABASE',
+  optional_database_name(DBName)      # 'database name',
+  !.
+*/
+
+
+% CREATE, CREATE OR REPLACE
 create_or_replace(create) -->
   cmd(create)                         # 'CREATE'.
 
@@ -239,7 +320,8 @@ constrained_typed_columns([C:T],Ctrs) -->
   constrained_typed_column(C:T,Ctrs).
 constrained_typed_columns([C:T|CTs],Ctrs) -->
   constrained_typed_column(C:T,CCtrs),
-  punct(',')                          # 'comma',
+  punct(',')                          # 'comma or column constraints',
+  !,
   constrained_typed_columns(CTs,RCtrs),
   {append(CCtrs,RCtrs,Ctrs)}.
 
@@ -250,7 +332,7 @@ constrained_typed_column(C:T,[true]) -->
   typed_column(C:T).
 
 typed_column(C:T) -->
-  colname(C)                          # 'a column identifier',
+  colname(C)                          # 'AS, LIKE or column identifier',
   sql_type(T).
   
 column_constraint_definitions(C,Ctrs) -->
@@ -313,6 +395,9 @@ check_constraint(fd(Ls,Rs)) -->
 check_constraint(sql_check_constraint(WhereCondition)) -->
   where_condition(WhereCondition).
 
+check_constraint(_) -->
+  set_error('Syntax', 'where condition or a list of columns followed by ''DETERMINED BY'' and another list of columns').
+
 optional_table_constraints(Ctrs) -->
   punct(',')                          # 'comma', 
   table_constraints(Ctrs).
@@ -328,16 +413,6 @@ table_constraints([Ctr|Ctrs]) -->
   punct(',')                          # 'comma', 
   table_constraints(Ctrs).  
 
-
-/*
-opening_parentheses_star(N),
-cmd(as)                             # 'AS',
-dqlStmt((LSQLst,Schema))            # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
-closing_parentheses_star(N),
-{atom_concat(CR,'_table_as',CRT),
-  CRTSchema=..[CRT,(LSQLst,_AS),Schema]},
-!.
-
 create_view_schema(Schema) -->
   complete_untyped_schema(Schema),
   !.
@@ -347,40 +422,275 @@ create_view_schema(Name) -->
 complete_untyped_schema(Schema) -->
   sql_user_identifier(Name),
   punct('(')                          # 'opening parenthesis ''(''',
-  my_untyped_columns(Cs),
+  untyped_columns(Cs),
   punct(')')                          # 'closing parenthesis '')''',
   {Schema =.. [Name|Cs]}.
+
+optional_database_name(DBName) -->
+  sql_user_identifier(DBName).
+optional_database_name('$des') -->
+  [].
+
+/*
+% Parsing alter_table_alter_column options
+alter_table_alter_column(AD,_TableName,Element) -->
+  add_or_drop(AD)                     # 'ADD or DROP',
+  add_drop_table_element(AD,Element)  # 'COLUMN or CONSTRAINT',
+  !.
+alter_table_alter_column(alter,TableName,Element) -->
+  cmd(alter)                          # 'ALTER',
+  optional_cmd(column),
+  alter_column(Element,Column),
+  !,
+  {
+    exist_att(TableName,Column)
+  }.
+
+add_or_drop(add) -->
+  cmd(add)                            # 'ADD'.
+add_or_drop(drop) -->
+  cmd(drop)                           # 'DROP'.
+
+add_drop_table_element(AD,Column) -->
+  optional_cmd(column),
+  add_drop_column(AD,Column).
+add_drop_table_element(_AD,ctr(Constraint)) -->
+  cmd(constraint)                     # 'CONSTRAINT',
+  optional_sql_ctr_name(_CtrName),
+  table_constraint(Constraint)        # 'table constraint'.
+
+add_drop_column(add,column(C:T,Ctrs)) -->
+  constrained_typed_column(C:T,Ctrs)  # 'valid table column definition'.
+add_drop_column(drop,column(Colname)) -->
+  colname(Colname)                    # 'a column name'.
+
+
+optional_sql_ctr_name(CtrName) -->
+  sql_user_identifier(CtrName).
+optional_sql_ctr_name('$void') -->
+  % TODO: Generate a unique system identifier
+  [].
+
+alter_column(column(C:T,Ctrs),C) -->  
+  constrained_typed_column(C:T,Ctrs)  # 'valid table column definition'.
+alter_column(column(C:T),C) -->
+  sql_user_identifier(C)              # 'identifier',
+  cmd(set)                            # 'SET',
+  optional_cmd(data),
+  cmd(type)                           # 'DATA TYPE or TYPE',
+  sql_type(T)                         # 'valid type name'.
+
+
+optional_drop_clauses(RelType,Clauses) -->
+  optional_drop_clauses(RelType,[],Clauses).
+  
+optional_drop_clauses(RelType,ClausesIn,ClausesOut) -->
+  cmd(if)                             # 'IF',
+  cmd(exists)                         # 'EXISTS',
+  optional_drop_clauses(RelType,[if_exists|ClausesIn],ClausesOut).
+optional_drop_clauses(RelType,ClausesIn,ClausesOut) -->
+  cmd(cascade)                        # 'CASCADE',
+  optional_drop_clauses(RelType,[cascade|ClausesIn],ClausesOut).
+optional_drop_clauses(table,ClausesIn,ClausesOut) -->
+  % This option only applies to tables
+  cmd(cascade)                        # 'CASCADE',
+  cmd(constraints)                    # 'CONSTRAINTS',
+  optional_drop_clauses(table,ClausesIn,ClausesOut). % Default option. Maybe a later version will change this default
+optional_drop_clauses(RelType,ClausesIn,ClausesOut) -->
+  cmd(restrict)                       # 'RESTRICT',
+  optional_drop_clauses(RelType,ClausesIn,ClausesOut). % Default behaviour
+optional_drop_clauses(_RelType,Clauses,Clauses) -->
+  [].
+
+% HR-SQL CREATE VIEW syntax
+ddlStmt(CRVSchema) -->
+  hrsql_typed_schema(Schema)          # 'typed schema', % No constraints
+   % syntax_check_redef(Schema),  % If attempting to redefine a datalog keyword, exception is thrown.
+  punct(':')                          # 'double colon',
+  comparisonOp('=')                   # 'equals ''=''', 
+  dqlStmt((SQLst,Schema))             # 'select statement',
+  {CRVSchema = create_or_replace_view(hrsql,(SQLst,_AS),Schema)}, 
+  !.
+
+hrsql_typed_schema(Schema) -->
+  relname(Name)                       # 'relation name',
+  punct('(')                          # 'opening parenthesis ''(''',
+  hrsql_typed_columns(Cs),
+  punct(')')                          # 'closing parenthesis '')''',
+  {Schema =.. [Name|Cs]}.
+
+hrsql_typed_columns([C:T]) --> 
+  typed_column(C:T).
+hrsql_typed_columns([C:T|CTs]) -->
+  typed_column(C:T),
+  punct(',')                          # 'comma',
+  hrsql_typed_columns(CTs).*/
+
+
+exist_table(TableName) :-
+  exist_table(TableName,_Arity).
+  
+exist_table(TableName,Arity) :-
+  current_db('$des'),
+  !,
+  (des_table_exists(TableName,Arity) -> true;
+    (!, fail)).
+    %my_raise_exception(unknown_table(TableName),syntax(''),[])).
+
+exist_table(TableName,_Arity) :-
+  (my_odbc_exists_table(TableName) -> true;
+    (!, fail)).
+    %my_raise_exception(unknown_table(TableName),syntax(''),[])).
+  
+des_table_exists(TableName) :-
+  des_table_exists(TableName,_Arity).
+
+des_table_exists(TableName,Arity) :-
+  my_table('$des',TableName,Arity),
+  \+ my_view('$des',TableName,_A,_S,_La,_D,_ODLIds,_L,_SC).
+
+/*
+des_relation_exists(Relationname) :-
+  des_relation_exists(Relationname,_Arity).
+
+des_relation_exists(Relationname,Arity) :-
+  my_table('$des',Relationname,Arity).
 */
+
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % % DQL (Data Query Language) statements
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 dqlStmt([STs1|STs]/STs) --> 
-  b_DQL([STs1|STs]/STs)               # 'todo',
+  b_DQL([STs1|STs]/STs)               # 'SQL DQL statement',
   !.
 
 dqlStmt([STs1|STs]/STs) --> 
-  ub_DQL([STs1|STs]/STs)              # 'todo',
+  ub_DQL([STs1|STs]/STs)              # 'SQL DQL statement',
   !.
 
-ub_DQL([select()|STs]/STs) --> 
-  cmd(select)                         # 'SELECT',
-  !.
-
-b_DQL(SQLst) -->
+b_DQL([STs1|STs]/STs) -->
   punct('(')                          # 'opening parenthesis ''(''',
-  dqlStmt(SQLst)                      # 'todo',
+  dqlStmt([STs1|STs]/STs)             # 'SQL DQL statement',
   punct(')')                          # 'closing parenthesis '')'''.
 
-where_clause(WhereCondition) -->
-  cmd(where)                          # 'WHERE',
+ub_DQL([STs1|STs]/STs) --> 
+  select_DQL(STs1),
+  !.
+
+% SELECT 
+select_DQL((select(/*DistinctAll,TopN,Offset,*/ProjList/*,TargetList*/,
+               from(Relations))/*,
+               where(WhereCondition),
+               group_by(GroupList),
+               having(HavingCondition),
+               order_by(OrderArgs,OrderSpecs))*/,_AS)) -->
+  select_stmt(_DistinctAll,_TopN),
+  projection_list(ProjList)           # 'SELECT list',
+  /*target_clause(TargetList),*/
+  cmd(from)                           # 'FROM clause',
   opening_parentheses_star(N),
-  where_condition(WhereCondition)     # 'WHERE condition',
-  closing_parentheses_star(N).
-where_clause(true) -->
+  {!}, % 23-01-2021
+  relations(Relations)                # 'expect a valid relation',
+  /*where_clause_with_cut(WhereCondition),
+  group_by_clause(GroupList),
+  having_clause(HavingCondition),
+  order_by_clause(OrderArgs,OrderSpecs),
+  optional_offset_limit(Offset),
+  optional_fetch_first(TopN),*/
+  closing_parentheses_star(N),
+  %{set_topN_default(TopN)},
+  !.
+
+select_stmt(_DistinctAll,_TopN) -->
+  cmd(select)                         # 'SELECT'.
+  %optional_select_modifiers(DistinctAll,TopN).
+
+projection_list(*) --> 
+  op('*')                             # '*'.
+projection_list([A|As]) --> 
+  p_ren_argument(A), 
+  punct(',')                          # 'comma', 
+%  {!},  % It could be part of a WITH definition, so no cut is allowed
+  projection_list(As).
+projection_list([A]) --> 
+  p_ren_argument(A).
+
+p_ren_argument(A) --> 
+  ren_argument(A).
+p_ren_argument(A) --> 
+  sql_argument(A,_AS).
+
+ren_argument(Arg) -->
+  sql_argument(Arg,AS),
+  optional_cmd(as), 
+  sql_user_identifier(AS).
+
+sql_argument((R,(*)),'$') -->  % Cannot be renamed
+  relname(R),
+  punct('.')                          # 'dot ''.''',
+  op('*')                             # '*'.
+sql_argument(E,AS) -->
+  sql_proj_expression(E,AS).
+
+
+relations([R|Rs]) --> 
+  p_ren_relation(R), 
+  remaining_relations(Rs).
+
+p_ren_relation(R) --> 
+  relation(R).
+p_ren_relation(R) --> 
+  ren_relation(R).
+
+remaining_relations(Rs) -->
+  punct(',')                          # 'comma', 
+%  {!},   Does not work with WITH statements, where commas separate local view definitions
+  relations(Rs).
+remaining_relations([]) -->
   [].
 
+ren_relation((R,[J|Args])) -->
+  opening_parentheses_star(N),
+  relation((R,[J|Args])),
+  closing_parentheses_star(N),
+  optional_cmd(as),
+  sql_user_identifier(I),
+  {ignore_autorenaming(R,I,J)}.
+
+ignore_autorenaming(I,I,_) :- % Ignore user renaming
+  !.
+ignore_autorenaming(_,I,I). % Use user renaming
+
+relation(R) --> 
+  opening_parentheses_star(N),
+  ub_relation(R),
+  closing_parentheses_star(N).
+
+ub_relation(R) --> 
+  non_join_relation(R).
+/*ub_relation((R,_AS)) --> 
+  join_relation(R).
+ub_relation((R,_AS)) --> 
+  division_relation(R).*/
+
+non_join_relation((T,none)) -->
+  sql_user_identifier(T).
+
+non_join_relation((R,AS)) -->
+  dqlStmt([(R,AS)|STs]/STs).
+
+
+
+where_clause_with_cut(WhereCondition) -->
+  cmd(where)                          # 'WHERE',
+  opening_parentheses_star(N),
+  !,
+  where_condition(WhereCondition)     # 'WHERE condition',
+  closing_parentheses_star(N).
+where_clause_with_cut(true) -->
+  [].
 
 where_condition(C) --> 
   sql_condition(C).
@@ -414,7 +724,7 @@ dmlStmt([insert_into(TableName,Colnames, Vs)|STs]/STs) -->
   tablename(TableName)                # 'table name',
   current_position(Position),
   punct('(')                          # 'opening parenthesis or DEFAULT',
-  column_name_list(Colnames)          # 'a sequence of column names',
+  untyped_columns(Colnames)          # 'a sequence of column names',
   punct(')')                          # 'closing parenthesis '')''',
   {(my_remove_duplicates(Colnames,Colnames) -> true ;
   set_error_with_parameter('Semantic', 'Column names must be different in ~w' , [Colnames], Position),
@@ -483,7 +793,7 @@ update_assignment(expr(ColumnName,none,string),Expression) -->
   comparisonOp('=')                   # 'equals ''=''', 
   sql_proj_expression(Expression,_Type).
 
-/*
+
 dql_or_constant_tuples(_A,R) -->
   dqlStmt(R).
 dql_or_constant_tuples(A,R) -->
@@ -492,7 +802,7 @@ dql_or_constant_tuples(A,R) -->
   punct(')')                          # 'closing parenthesis '')''',
   {in_tuples_to_DQL(Ts,R)}.
 dql_or_constant_tuples(_,R) -->
-  my_sql_ground_tuple(_,Cs),
+  sql_ground_tuple(_,Cs),
   {my_list_to_list_of_lists(Cs,L),
     in_tuples_to_DQL(L,R)}.
 dql_or_constant_tuples(1,R) -->
@@ -507,7 +817,7 @@ in_tuples_to_DQL([C1,C2|Cs],(union(all,SQL1,SQL2),_)) :-
   
 args_to_exprs([],[]).
 args_to_exprs([C|Cs],[expr(C,_,_)|Es]) :-
-  args_to_exprs(Cs,Es).*/
+  args_to_exprs(Cs,Es).
 
 %To obtain the arity (the number of attributes or columns) of a 
 %relation (table or view) in the database.
@@ -560,6 +870,14 @@ sql_ground_tuple(L,Cs) -->
     (L=TL -> true ;
       set_error_with_parameter('Semantic', 'Unmatching number of values => ~w (must be ~w)' , [TL, L], Position),
       !, fail)}.
+
+where_clause(WhereCondition) -->
+  cmd(where)                          # 'WHERE',
+  opening_parentheses_star(N),
+  where_condition(WhereCondition)     # 'WHERE condition',
+  closing_parentheses_star(N).
+where_clause(true) -->
+  [].
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % % ISL (Information Schema Language) statements
@@ -888,10 +1206,10 @@ r_sql_condition(PP,Pi,Ti/To) -->
 r_sql_condition(_,_,Ti/Ti) -->
   [].
 
-sql_operator(1100,xfy, or,'or').
-sql_operator(1050,xfy, xor,'xor').
-sql_operator(1000,xfy, and,'and').
-sql_operator( 900, fy, not,'not').
+sql_operator(1100,xfy, or,'OR').
+sql_operator(1050,xfy, xor,'XOR').
+sql_operator(1000,xfy, and,'AND').
+sql_operator( 900, fy, not,'NOT').
 
 b_sql_condition(SQLst) -->
   punct('(')                          # 'opening parenthesis ''(''',
@@ -937,12 +1255,12 @@ cond_factor(false) -->
   !.
 cond_factor(is_null(R)) --> 
   sql_expression(R,_T), 
-  cmd(is), 
+  cmd(is)                             # 'IS', 
   cmd(null)                           # 'NULL',
   !.
 cond_factor(not(is_null(R))) --> 
   sql_expression(R,_T),  
-  cmd(is), 
+  cmd(is)                             # 'IS',
   op(not)                             # 'NOT', 
   cmd(null)                           # 'NULL',
   !.
@@ -970,10 +1288,10 @@ cond_factor(or('>'(L,C),'>'(C,R))) -->
   op(and)                             # 'AND',
   sql_expression(R,_RT),
   %syntax_check_same_types('BETWEEN test',LT,RT),
-  syntax_check_between(L,R).
+  syntax_check_between(L,R).*/
 cond_factor(in(L,R)) --> 
   column_or_constant_tuple(L,A),
-  cmd(in),
+  cmd(in)                             # 'IN',
   opening_parentheses_star(N),
   dql_or_constant_tuples(A,R),
   closing_parentheses_star(N).
@@ -984,7 +1302,7 @@ cond_factor(not_in(L,R)) -->
   opening_parentheses_star(N),
   dql_or_constant_tuples(A,R),
   closing_parentheses_star(N).
-cond_factor(F) --> 
+/*cond_factor(F) --> 
   sql_expression(L,LT),
   syntax_check_expr_type(L,LT,string(_)),
   optional_op(not,NOT),
@@ -1048,9 +1366,11 @@ sql_proj_expression_sequence([C,C2|Cs]) -->
 sql_proj_expression_sequence([C]) -->
   sql_proj_expression(C,_).
 
-%TODO none
+
 sql_proj_expression(expr(E,AS,Type),AS) -->
   sql_expression(E,Type).
+
+
 
 sql_rel_cond_factor(Op,L,R,CF) :-
   CF=..[Op,L,R].
@@ -1217,7 +1537,7 @@ sql_factor(case(Expr,ExprValList,Default),Type) -->
   sql_case_else_end(Default,Type).*/
 sql_factor(cte(C,T),T) -->
   sql_constant(cte(C,T)).
-sql_factor(C,_) -->
+sql_factor(C,none) -->
   column(C).
 /*sql_factor(F,T) --> 
   {my_function(SF,F,Type,0,[T]),
@@ -1236,15 +1556,10 @@ sql_special_aggregate_function(AF,T) -->
     to_uppercase_char_list(SF,USF)},
   my_kw(USF), 
   push_syntax_error(['Expected left bracket ''('''],Old1),
-  my_sql_blanks_star,
   "(",
-  pop_syntax_error(Old1),
-  my_sql_blanks_star,
   my_kw("DISTINCT"),
-  my_sql_blanks,
   my_column(C),
   push_syntax_error(['Expected right bracket '')'''],Old2),
-  my_sql_blanks_star,
   ")",
   pop_syntax_error(Old2),
   {AF=..[PF,C]}.
@@ -1271,7 +1586,7 @@ column_constraint(C,candidate_key([C])) -->
   !.
 column_constraint(C,foreign_key([C],TableName,[TC])) -->
   cmd(references)                     # 'REFERENCES', 
-  referenced_column(C,TableName,TC),
+  referenced_column(C,TableName,TC)   # 'valid reference name TableName[(Att)]',
   optional_referential_triggered_action(_Rule),
   !.
 column_constraint(C,default(C,Expression,Type)) -->
@@ -1319,7 +1634,7 @@ table_constraint(foreign_key(Cs,FTableName,FCs)) -->
   column_tuple(Cs)                    # 'a column sequence between parentheses',
   cmd(references)                     # 'REFERENCES', 
   tablename(FTableName)               # 'table name',
-  column_tuple(FCs)                    # 'a column sequence between parentheses',
+  column_tuple(FCs)                   # 'a column sequence between parentheses',
   optional_referential_triggered_action(_Rule),
   !.
 table_constraint(foreign_key(Cs,FTableName,Cs)) -->
@@ -1333,7 +1648,7 @@ table_constraint(foreign_key(Cs,FTableName,Cs)) -->
 table_constraint(CheckCtr) -->
   cmd(check)                          # 'CHECK',
   opening_parentheses_star(N),
-  check_constraint(CheckCtr)       # 'check constraint',
+  check_constraint(CheckCtr)          # 'valid check constraint',
   closing_parentheses_star(N),
   !.
 table_constraint(candidate_key(Cs)) -->
@@ -1351,19 +1666,42 @@ table_constraint(_) -->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 column_tuple(Ts) -->
-  punct('(')                          # 'opening parenthesis ''(''',
-  column_name_list(Ts)                # 'a sequence of column names',
+  [punct('('):_],
+  untyped_columns(Ts)                 # 'a sequence of column names',
   punct(')')                          # 'closing parenthesis '')'''.
 
+column_tuple([Ts]) -->
+  column_name(Ts)                     # 'a sequence of column names'.
+
+column_name(C) -->
+  untyped_column(C).
+
+/*column_list([C,C2|Cs]) -->
+  column(C),
+  punct(',')                          # 'comma or closing parenthesis '')''', 
+  column_list([C2|Cs]).
+column_list([C]) -->
+  my_column(C).*/
+
+/*
 %column_name_list(columnList)
 %column_name separate with comma
-column_name_list([C]) --> 
+column_name_list([C:_T]) --> 
   untyped_column(C).
-column_name_list([C|Cs]) -->
+column_name_list([C:_T|Cs]) -->
   untyped_column(C),
-  punct(',')                          # 'comma', 
+  punct(',')                          # 'comma or closing parenthesis '')''', 
   !,
   column_name_list(Cs).
+*/
+
+untyped_columns([C/*:_T*/]) --> 
+  untyped_column(C).
+untyped_columns([C/*:_T*/|CTs]) -->
+  untyped_column(C),
+  punct(',')                          # 'comma or closing parenthesis '')''', 
+  !,
+  untyped_columns(CTs).
 
 untyped_column(C) --> 
   colname(C).
@@ -1642,10 +1980,26 @@ test008 :-
   test(parser, lex_parse, "ROLLBACK TO SAVEPOINT 'sp1'",
     failure(error('Syntax', 'double quotes id (savepoint name)', pos(1, 23)))).
 
-%DMLstmt --select into
+%DDLstmt create, create or replace error
 test009 :-
-  test(parser, lex_parse, 'test/test016.sql',
-    [insert_into(t1,[a1],select()),insert_into(t1,[a1],select()),insert_into(t1,[a1],select()),insert_into(t1,[a1],select()),insert_into(t1,[a1],[default]),insert_into(t3,[a3,b3,c3],[default,default,default]),insert_into(t2,[a2,b2],[[int(1),str('2')]]),insert_into(t2,[a2,b2],[[int(1),str('Ventas')],[int(2),str('Contabilidad')]]),insert_into(t3,[a3,b3,c3],[[str('1'),str(n1),str(d1)],[str('2'),str(n2),str(d2)]]),insert_into(t1,[a1],[[date('2000-060-01')]]),insert_into(t3,[a3,b3,c3],[[time('12:00:01'),frac(2,5),int(1)],[date('2012-01-01'),default,null]]),insert_into(t2,[a2,b2],[[time('12:00:01'),date('2000-0600-01')]]),insert_into(t2,[a2,b2],[[time('12:00:01'),date('2000-0600-01')]]),insert_into(t1,[a1],[[timestamp('2023-06-01 13:45:30')]]),insert_into(t1,[a1],[[int(1)]]),insert_into(t3,[a3,b3,c3],[[int(1),int(2),str(a)]]),insert_into(t2,[a3,b3,c3],[[int(1),int(2),str(a)]])]).
+  test(parser, lex_parse, "create replace table t(a int)",
+    failure(error('Syntax', 'OR REPLACE, TABLE, VIEW or DATABASE', pos(1, 8)))).
+
+test010 :-
+  test(parser, lex_parse, "create or table t(a int)",
+    failure(error('Syntax', 'REPLACE', pos(1, 11)))).
+
+test011 :-
+  test(parser, lex_parse, "create table t(a integer) as",
+    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 27)))).
+
+test012 :-
+  test(parser, lex_parse, "create or table t(a int)",
+    failure(error('Syntax', 'REPLACE', pos(1, 11)))).
+
+test013 :-
+  test(parser, lex_parse, "create or table t(a int)",
+    failure(error('Syntax', 'REPLACE', pos(1, 11)))).
 
 test024 :-
   test(parser, lex_parse, "insert into t3 values (1, '1')",

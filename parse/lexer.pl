@@ -81,6 +81,10 @@ lex(Input, Tokens) :-
    ;  read_file_to_codes(Input, Codes, [])),
   lex_codes(Codes, Tokens).
  
+lex(_Input, _Tokens) :-
+  process_error,
+  !, fail.
+
 lex_codes(Codes, Tokens) :-
   token_pos_list(Tokens, pos(1,1), _Pos, Codes, []),
   !.
@@ -360,6 +364,7 @@ command('constraint')                       -->> lc("constraint"),              
 command('create')                           -->> lc("create"),                           not_more_char,  !,  add_col(6).    
 command('databases')                        -->> lc("databases"),                        not_more_char,  !,  add_col(9).                   
 command('database')                         -->> lc("database"),                         not_more_char,  !,  add_col(8).    
+command('data')                             -->> lc("data"),                             not_more_char,  !,  add_col(4).   
 command('datetime')                         -->> lc("datetime"),                         not_more_char,  !,  add_col(8).                  
 command('date')                             -->> lc("date"),                             not_more_char,  !,  add_col(4).       
 command('decimal')                          -->> lc("decimal"),                          not_more_char,  !,  add_col(7).           

@@ -2,7 +2,8 @@
           [ current_db/1,
           current_db/2,
           my_table/3,
-          my_attribute/5]).
+          my_attribute/5,
+          my_view/9]).
 
 % my_table(DB,RelationName,Arity)
 :- dynamic(my_table/3).
@@ -103,3 +104,14 @@ my_attribute(A, B, C, D, E) :-
   my_odbc_get_colnames(A, C, F),
   my_nth1_member(D, B, F),
   my_odbc_get_type(A, C, D, E).
+
+
+my_view(ViewName,Arity,SQLst,sql,[],[],[],[]) :-
+  current_db(ConnectionName),
+  (my_view(ConnectionName,ViewName,Arity,SQLst,sql,[],[],[],[])
+  ;
+    (ConnectionName \== '$des',
+      my_table(ConnectionName,ViewName,Arity),
+      get_sql_view_text_from_connection(ConnectionName,ViewName,SQLstr),
+      parse_sql_query((SQLst,_),SQLstr))
+  ).
