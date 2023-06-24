@@ -34,7 +34,6 @@ alter table t1 drop a
 alter table t1 drop constraint primary key a
 alter table t1 drop constraint primary key(a)
 
-
 */
 
 

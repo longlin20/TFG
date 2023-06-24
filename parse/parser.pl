@@ -49,16 +49,9 @@ lex_parse(Input) :-
   phrase(filter_tokens(FilteredTokens, []), Tokens),
   !,
   parse(FilteredTokens, SyntaxTrees),
-  forall(member(Tree, SyntaxTrees), writeln(Tree)).
-
-/*
-lex_parse(Input) :-
-  lex(Input, Tokens),
-  phrase(filter_tokens(FilteredTokens, []), Tokens),
-  !,
-  parse(FilteredTokens, SyntaxTrees),
   print(SyntaxTrees).
-*/
+  %forall(member(Tree, SyntaxTrees), writeln(Tree)).
+
 
 lex_parse(Input, SyntaxTrees) :-
   lex(Input, Tokens),
@@ -185,7 +178,7 @@ ddlStmt([CRTSchema|STs]/STs) -->
     set_error('Syntax', 'valid SQL DQL statement (SELECT, WITH or ASSUME)')),
   closing_parentheses_star(N),
   {atom_concat(CR,'_table_as',CRT),
-   CRTSchema=..[CRT,(LSQLst,none),Schema]},
+   CRTSchema=..[CRT,(LSQLst,_AS),Schema]},
   !.
 
 % CREATE TABLE LIKE
@@ -224,7 +217,7 @@ ddlStmt([CRVSchema|STs]/STs) -->
   dqlStmt([(LSQLst,Schema)|STs]/STs)  # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
   closing_parentheses_star(N),
   {atom_concat(CR,'_view',CRVF),
-   CRVSchema =.. [CRVF,sql,(LSQLst,none),Schema]},
+   CRVSchema =.. [CRVF,sql,(LSQLst,_AS),Schema]},
   !.
 
 % CREATE DATABASE
@@ -422,7 +415,7 @@ create_view_schema(Name) -->
 complete_untyped_schema(Schema) -->
   sql_user_identifier(Name),
   punct('(')                          # 'opening parenthesis ''(''',
-  untyped_columns(Cs),
+  untyped_columns(Cs)                 # 'column sequence separated by commas',
   punct(')')                          # 'closing parenthesis '')''',
   {Schema =.. [Name|Cs]}.
 
@@ -610,7 +603,7 @@ select_stmt(_DistinctAll,_TopN) -->
 projection_list(*) --> 
   op('*')                             # '*'.
 projection_list([A|As]) --> 
-  p_ren_argument(A), 
+  p_ren_argument(A),
   punct(',')                          # 'comma', 
 %  {!},  % It could be part of a WITH definition, so no cut is allowed
   projection_list(As).
@@ -675,7 +668,7 @@ ub_relation(R) -->
 ub_relation((R,_AS)) --> 
   division_relation(R).*/
 
-non_join_relation((T,none)) -->
+non_join_relation((T,_)) -->
   sql_user_identifier(T).
 
 non_join_relation((R,AS)) -->
@@ -788,7 +781,7 @@ update_assignments([Column,Expression|Assignments]) -->
   punct(',')                          # 'comma', 
   update_assignments(Assignments).
 
-update_assignment(expr(ColumnName,none,string),Expression) -->
+update_assignment(expr(ColumnName,_,string),Expression) -->
   column(attr(_T,ColumnName,_AS)),
   comparisonOp('=')                   # 'equals ''=''', 
   sql_proj_expression(Expression,_Type).
@@ -1074,13 +1067,13 @@ sql_constants([C]) -->
 sql_constant(cte(C,number(N))) --> 
   value(C, N),
   !.
-sql_constant(cte(C,string(none))) -->
+sql_constant(cte(C,string(_S))) -->
   value(C),
   !.
 sql_constant(default) -->
   cmd(default)                        # 'DEFAULT',
   !.
-sql_constant(cte('$NULL'(N),none)) -->
+sql_constant(cte('$NULL'(N),_T)) -->
   cmd(null)                           # 'NULL',
   !,
   {get_null_id(N)}. % :::WARNING: Needed?
@@ -1537,7 +1530,7 @@ sql_factor(case(Expr,ExprValList,Default),Type) -->
   sql_case_else_end(Default,Type).*/
 sql_factor(cte(C,T),T) -->
   sql_constant(cte(C,T)).
-sql_factor(C,none) -->
+sql_factor(C,_) -->
   column(C).
 /*sql_factor(F,T) --> 
   {my_function(SF,F,Type,0,[T]),
@@ -1586,7 +1579,7 @@ column_constraint(C,candidate_key([C])) -->
   !.
 column_constraint(C,foreign_key([C],TableName,[TC])) -->
   cmd(references)                     # 'REFERENCES', 
-  referenced_column(C,TableName,TC)   # 'valid reference name TableName[(Att)]',
+  referenced_column(C,TableName,TC)   # 'valid reference name (table name)',
   optional_referential_triggered_action(_Rule),
   !.
 column_constraint(C,default(C,Expression,Type)) -->
@@ -1695,9 +1688,9 @@ column_name_list([C:_T|Cs]) -->
   column_name_list(Cs).
 */
 
-untyped_columns([C/*:_T*/]) --> 
+untyped_columns([C:_T]) --> 
   untyped_column(C).
-untyped_columns([C/*:_T*/|CTs]) -->
+untyped_columns([C:_T|CTs]) -->
   untyped_column(C),
   punct(',')                          # 'comma or closing parenthesis '')''', 
   !,
@@ -1710,7 +1703,7 @@ p_ren_tablename(T) -->
   ren_tablename(T),
   !.
 
-p_ren_tablename((T, none)) -->
+p_ren_tablename((T, _R)) -->
   tablename(T)                        # 'table name',
   !.
 
@@ -1725,12 +1718,13 @@ ren_tablename((T,[I|Args])) -->
   !, fail)}.
 
 %column rel_id.col_id/col_id
-column(attr(R,C,none)) --> 
+column(attr(R,C,_AS)) --> 
   relname(R),
   punct('.')                          # 'dot',
   colname(C).
-column(attr(none,C,none)) --> 
+column(attr(_T,C,_AS)) --> 
   colname(C).
+  %{\+ evaluable_symbol(C)}. I guess this is no need
 
 % tablename/viewname/colname/relname
 tablename(TableName) -->
@@ -1944,10 +1938,18 @@ test :-
 % All test names must be of the form testXXX,
 % where XXX is a left-0-padded number.
 
+/*TEMPLATE
+testXXX :-
+test(parser, lex_parse, "STATEMENT",
+  failure(error('Syntax', 'ERROR', pos(1, YY)))).*/
+
 %ISLstmt
 test001 :-
   test(parser, lex_parse, 'test/test020.sql', 
-  [show_tables,show_views,show_databases,describe(t)]).
+  [show_tables,
+  show_views,
+  show_databases,
+  describe(t)]).
 
 %ISLstmt error
 test002 :-
@@ -1961,7 +1963,13 @@ test003 :-
 %TMLstmt
 test004 :-
   test(parser, lex_parse, 'test/test021.sql', 
-    [commit,commit,rollback([]),rollback([]),rollback([sp1]),rollback([sp1]),savepoint(['sp2.ddb'])]).
+    [commit,
+    commit,
+    rollback([]),
+    rollback([]),
+    rollback([sp1]),
+    rollback([sp1]),
+    savepoint(['sp2.ddb'])]).
 
 %TMLstmt error
 test005 :-
@@ -1980,27 +1988,162 @@ test008 :-
   test(parser, lex_parse, "ROLLBACK TO SAVEPOINT 'sp1'",
     failure(error('Syntax', 'double quotes id (savepoint name)', pos(1, 23)))).
 
-%DDLstmt create, create or replace error
+%DDLstmt create, create or replace
 test009 :-
-  test(parser, lex_parse, "create replace table t(a int)",
-    failure(error('Syntax', 'OR REPLACE, TABLE, VIEW or DATABASE', pos(1, 8)))).
+  test(parser, lex_parse, 'test/test014.sql',
+    [create_table(t(a:number(integer)),[true]),
+    create_table(t(a:number(integer)),[true]),
+    create_table(t(a:number(integer)),[true]),
+    create_table(c(a:string(varchar),b:string(varchar)),[true,true]),
+    create_table(edge(origin:string(varchar),destination:string(varchar)),[true,true]),
+    create_table(flights(airline:string(varchar),frm:string(varchar),to:string(varchar),departs:number(integer),arrives:number(integer)),[true,true,true,true,true]),
+    create_table(employee(name:string(varchar(20)),department:string(varchar(20)),salary:number(integer)),[true,true,true]),
+    create_table(emp(dni:string(varchar),numdep:number(integer)),[primary_key([dni]),foreign_key([numdep],dpto,[nd])]),
+    create_table(trab(dni:string(varchar),npro:number(integer)),[foreign_key([dni],emp,[dni]),true,primary_key([dni:_11656,npro:_11720])]),
+    create_table(takes(eid:string(varchar),cid:string(varchar),tyear:number(integer),tmonth:number(integer),tday:number(integer)),[true,true,true,true,true,primary_key([eid:_13206,cid:_13270])]),
+    create_table(flight(origin:string(varchar),destination:string(varchar),time:number(float)),[true,true,true]),
+    create_table(emp(dnisupervisor:string(varchar)),[true,sql_check_constraint(in([expr(attr(_14842,dnisupervisor,_14846),_14772,_14774)],[(select([expr(attr(_15232,dni,_15236),_15162,_15164)],from([(emp,_15394)])),_15018)|_14920]/_14920))]),
+    create_table(t(a:number(integer)),[sql_check_constraint(attr(_16116,a,_16120)>cte(int(0),number(int)))]),
+    create_or_replace_table(t(a:number(integer),b:number(integer)),[true,true]),
+    create_or_replace_table(t(a:number(integer),b:number(integer)),[true,true,foreign_key([a:_18036],s,[a:_18036])]),
+    create_or_replace_table(t(a:number(integer),b:number(integer),c:number(integer),d:number(integer)),[true,true,true,true,fd([c:_19844,d:_19908],[a:_19478,b:_19542])]),
+    create_table_like(t,s),
+    create_table_as((select([expr(attr(_21226,a,_21230),_21156,_21158)],from([(n,_21388)])),_21418),t3(a3:_20660,b3:_20724,c3:_20788)),
+    create_view(sql,(select([expr(attr(_22268,b,_22272),_22198,_22200)],from([(t,_22430)])),_22466),v(a:_21764)),
+    create_view(sql,(select([expr(attr(_23322,b,_23326),c,_23254)],from([(t,_23486)])),_23522),v(a:_22814)),
+    create_view(sql,(select([(b,(*))],from([(t,_24518)])),_24554),v(a:_23870)),
+    create_view(sql,(select(*,from([(t,_25566)])),_25602),v(a:_24902)),
+    create_database(x)]).
 
+%DDLstmt create, create or replace error
 test010 :-
   test(parser, lex_parse, "create or table t(a int)",
     failure(error('Syntax', 'REPLACE', pos(1, 11)))).
 
 test011 :-
-  test(parser, lex_parse, "create table t(a integer) as",
-    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 27)))).
+  test(parser, lex_parse, "create replace table t(a int);",
+    failure(error('Syntax', 'OR REPLACE, TABLE, VIEW or DATABASE', pos(1, 8)))).
 
 test012 :-
-  test(parser, lex_parse, "create or table t(a int)",
-    failure(error('Syntax', 'REPLACE', pos(1, 11)))).
+  test(parser, lex_parse, "create or replace able t(a int);",
+    failure(error('Syntax', 'TABLE or VIEW', pos(1, 19)))).
 
 test013 :-
-  test(parser, lex_parse, "create or table t(a int)",
-    failure(error('Syntax', 'REPLACE', pos(1, 11)))).
+  test(parser, lex_parse, "create table t('a' intiger)",
+    failure(error('Syntax', 'AS, LIKE or column identifier', pos(1, 16)))).
+
+test014 :-
+  test(parser, lex_parse, "create table emp(check dnisupervisor in select dni from emp);",
+    failure(error('Syntax', 'AS, LIKE or column identifier', pos(1, 18)))).
+  
+test015 :-
+  test(parser, lex_parse, "create table t(a)",
+    failure(error('Syntax', 'valid type', pos(1, 17)))).
+
+test016 :-
+  test(parser, lex_parse, "create table t(a intiger)",
+    failure(error('Syntax', 'valid type', pos(1, 18)))).
+
+test017 :-
+  test(parser, lex_parse, "create table emp(a, null b)",
+    failure(error('Syntax', 'valid type', pos(1, 19)))).
+
+test018 :-
+  test(parser, lex_parse, "create or replace table t(a integer check b DETERMINED BY c,d)",
+    failure(error('Syntax', 'valid type', pos(1, 62)))).
+
+test019 :-
+  test(parser, lex_parse, "create table t",
+    failure(error('Syntax', 'typed schema', pos(1, 14)))).
+  
+test020 :-
+  test(parser, lex_parse, "create or replace table t(a char())",
+    failure(error('Syntax', 'a positive integer', pos(1, 34)))).
+
+test021 :-
+  test(parser, lex_parse, "create or replace table t(a number(1,))",
+    failure(error('Syntax', 'a positive integer', pos(1, 38)))).
+
+test022 :-
+  test(parser, lex_parse, "create or replace table t(a int not nul)",
+    failure(error('Syntax', 'NULL', pos(1, 37)))).
+
+test023 :-
+  test(parser, lex_parse, "create or replace table t(a int primary kye)",
+    failure(error('Syntax', 'KEY', pos(1, 41)))).
 
 test024 :-
+  test(parser, lex_parse, "create or replace table t(a int candidate)",
+    failure(error('Syntax', 'KEY', pos(1, 42)))).
+  
+test025 :-
+  test(parser, lex_parse, "create or replace table t(a int determined from a)",
+    failure(error('Syntax', 'BY', pos(1, 44)))).
+
+test026 :-
+  test(parser, lex_parse, "create or replace table t(a int references)",
+    failure(error('Syntax', 'table name', pos(1, 43)))).
+
+test027 :-
+  test(parser, lex_parse, "create or replace table t(a int references s()a)",
+    failure(error('Syntax', 'a column name', pos(1, 46)))).
+
+test028 :-
+  test(parser, lex_parse, "create or replace table t(a int defaul 0)",
+    failure(error('Syntax', 'comma or column constraints', pos(1, 33)))).
+
+test029 :-
+  test(parser, lex_parse, "create or replace table t(a int, foreign key s)",
+    failure(error('Syntax', 'REFERENCES', pos(1, 47)))).
+  
+test030 :-
+  test(parser, lex_parse, "create or replace table t(a int, b int, foreign key (a,b references s)",
+    failure(error('Syntax', 'comma or closing parenthesis '')''', pos(1, 58)))).
+
+test031 :-
+  test(parser, lex_parse, "create or replace table t(a int references s a)",
+    failure(error('Syntax', 'valid column constraint (NOT, NULL, PRIMARY, UNIQUE, REFERENCES, DEFAULT, CHECK, CANDIDATE, DETERMINED)', pos(1, 46)))).
+
+test032 :-
+  test(parser, lex_parse, "create or replace table t(a int, unique s,)",
+    failure(error('Syntax', 'valid table constraint (NOT, PRIMARY, UNIQUE, FOREIGN, CHECK, CANDIDATE)', pos(1, 43)))).
+
+test033 :-
+  test(parser, lex_parse, "create table t(a) as",
+    failure(error('Syntax', 'valid SQL DQL statement (SELECT, WITH or ASSUME)', pos(last, last)))).
+
+test034 :-
+  test(parser, lex_parse, "create table t(a) like s",
+    failure(error('Syntax', 'AS, or column name', pos(1, 19)))).
+  
+test035 :-
+  test(parser, lex_parse, "create table t(a) a",
+    failure(error('Syntax', 'AS, or column name', pos(1, 19)))).
+
+test036 :-
+  test(parser, lex_parse, "create table t like 2",
+    failure(error('Syntax', 'valid SQL DDL statement (table name)', pos(1, 21)))).
+
+test037 :-
+  test(parser, lex_parse, "create table t like sa)",
+    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 23)))).
+
+test038 :-
+  test(parser, lex_parse, "create view",
+    failure(error('Syntax', 'view schema', pos(last, last)))).
+
+test039 :-
+  test(parser, lex_parse, "create view v(a) s",
+    failure(error('Syntax', 'AS', pos(1, 18)))).
+
+test040 :-
+  test(parser, lex_parse, "create view v(a) as",
+    failure(error('Syntax', 'SQL DQL statement', pos(last, last)))).
+  
+test041 :-
+  test(parser, lex_parse, "create view v() as select * from a",
+    failure(error('Syntax', 'column sequence separated by commas', pos(1, 15)))).
+
+test124 :-
   test(parser, lex_parse, "insert into t3 values (1, '1')",
     failure(error('Semantic', 'Unmatching number of values => 2 (must be 3)', pos(1, 23)))).

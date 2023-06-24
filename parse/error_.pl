@@ -123,7 +123,7 @@ display_error(Class, Error, pos(Line, Column)) :-
 
 % display_error_location(+Line, +Location, +ColumnOrStmt)
 % Display the location of the error: the line and either 
-%   the column or statement numbers (base 1) 
+%   the column
 display_error_location(void, _, void) :-
   !.
 display_error_location(last, _, last) :-
