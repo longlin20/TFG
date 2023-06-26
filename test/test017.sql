@@ -1,28 +1,37 @@
 /*% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% % ISL (Information Schema Language) statements
+% % DQL (Data Query Language) statements
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% ISLstmt ::=
-%   SHOW TABLES
+SELECT STATEMENTS
+
+% DQLstmt ::=
+%   (DQLstmt) 
 %   |
-%   SHOW VIEWS
-%   |
-%   SHOW DATABASES
-%   |
-%   DESCRIBE [TableName|ViewName]*/
+%   UBSQL
 
-show tables
+% UBSQL ::= 
+%   SELECTstmt */
 
-show views
 
-SHOW DATABASES
+--select distinct * from t
+--select distinct top 1 * from t
+--select top 1 * from t
+--select top 1 distinct * from t
 
-DESCRIBE t
 
-/*ERROR*/
+--select distinct * from t fetch first 1 rows only
+--select top 1 distinct * from t fetch first 1 rows only
 
--- table name
---DESCRIBE 2
+/* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   SELECT STATEMENTS ERROR , column
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
--- TABLES, VIEWS or DATABASES
---show t
+--SELECT list , 14/23
+--select top 1 from t
+--select distinct top 1 top * from t
+
+-- FROM clause , 10
+--select a top 1 * from t
+
+--
+--select a * from t

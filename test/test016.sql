@@ -1,71 +1,64 @@
 /*% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% % DML (Data Manipulation Language) statements
+% % DDL (Data Definition Language) statements
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-INSERT INTO STATEMENTS
+DROP and CompleteSchema := DQLstmt STATEMENTS
 
-% DMLstmt ::=
-%   INSERT INTO TableName[(Att {,Att})] VALUES (ExprDef {,ExprDef}) {, (ExprDef {,ExprDef})}
+% DDLstmt ::=
+%   DROP TABLE DropTableClauses TableName{,TableName} DropTableClauses % Extended syntax following MySQL, SQL Server and others
 %   |
-%   INSERT INTO TableName DEFAULT VALUES
+%   DROP VIEW DropViewClauses ViewName DropViewClauses
 %   |
-%   INSERT INTO TableName[(Att {,Att})] DQLstmt*/
-
-insert into `t1` select
-insert into t1 select
-insert into [t1] select
-insert into "t1" select
-insert into t1 default values
-insert into t3 default values
-insert into t2 values(1, '2')
-insert into t2 values (1,'Ventas'), (2,'Contabilidad')
-insert into t3 values ('1','n1','d1'),('2','n2','d2');
-INSERT INTO t1 VALUES (DATE '2011-06-1');
-INSERT INTO t1 VALUES (default), (NULL);
-INSERT INTO t3 VALUES (TIME '12:00:01', 2.5, 1), (DATE '2012-01-01', DEFAULT, NULL);
-INSERT INTO  t2 VALUES (TIME '12:00:01', DATE '2000-06-01')
-INSERT INTO  T1 VALUES (TIMESTAMP BC '2023-06-01 13:45:30'), (DATETIME '2023-06-17 17:35:45')
-insert into t1(a1) values (1)
-insert into t3(a3,b3,c3) values (1,2,'a')
-insert into t2(a3,b3,c3) values (1,2,'a')
+%   DROP DATABASE [DatabaseName]
+%   |
+%   CompleteSchema := DQLstmt                    % Addition to support HR-SQL syntax */
 
 
-/*ERROR*/
 
--- table name
---insert into 222 values (1, '1')
+drop table t
+drop view v
 
--- Semantic: Unmatching number of values => 2 (must be 3)
---insert into t3 values (1, '1')
+drop table if exists t
+drop table t cascade 
+drop table t cascade constraints
+drop view if exists v
+drop view cascade v
+drop view v if exists
 
--- Semantic: Unmatching number of values => 3 (must be 2)
---insert into t3(a2,a3) values (1,2,'a')
+drop database
+drop database db
+drop database $des
 
--- Semantic: Invalid DATE String format => must be 'Int-Int-Int'
---INSERT INTO  t1 VALUES (DATE '2000-a-01');
+my_view(age int) := SELECT age FROM my_table;
 
---
---insert into t2(a3,b3,a3) values (1,2,'a')
 
---
---insert into t1 values ('V1')    ('V2');
+/* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   DROP and CompleteSchema := DQLstmt STATEMENTS ERROR , column
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
--- closing parenthesis or comma 
---insert into t1 values(1 '2')
---insert into t3 values(1 '2')
+-- TABLE, VIEW or DATABASE , 6
+--drop t
 
--- comma 
---insert into t2(a3 c) values (1,'a')
+-- EXISTS , 15
+--drop table if exist t
 
--- string
---INSERT INTO  t1 VALUES (DATE 2000);
+-- table name or optional drop table clauses(IF EXISTS, CASCADE or CASCADE CONSTRAINTS) , 12
+--drop table is t
 
--- VALUES 
---insert into t1 default v
+-- view name or optional drop view clauses(IF EXISTS, CASCADE) , 11
+--drop view is v
 
--- VALUES, select statement, or DEFAULT VALUES
---default 
---insert into t1 defa values
+-- valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT) , 13
+--drop view v exist
 
--- closing bracket
---insert into [t1 select
+-- valid type , 13
+--my_view(age it) := SELECT age FROM my_table
+
+-- column identifier , 17
+--my_view(age int,) := SELECT age FROM my_table
+
+-- colon ':' , 18
+--my_view(age int) = SELECT age FROM my_table
+
+-- equals '=' , 20
+--my_view(age int) : SELECT age FROM my_table

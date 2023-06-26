@@ -17,6 +17,7 @@ CREATE STATEMENTS
 
 
 
+
 create table t(a int);
 create table "t"("a" int)
 create table [t]([a] int)
@@ -29,12 +30,11 @@ create table trab(dni string references emp, npro int, primary key(dni,npro));
 create table takes(eID string, cID string, tYear int, tMonth int, tDay int, primary key (eID, cID));
 CREATE TABLE flight(origin string, destination string, "time" real);
 create table emp(dnisupervisor string, check dnisupervisor in select dni from emp);
-create table t(a integer check (a>0))
+create table t(a integer check (a>-1E-1))
 
 create or replace table t(a int, b int);
 create or replace table t(a int, b int, foreign key (a) references s)
 create or replace table t(a int, b int, c int, d int, check (a,b) determined by (c,d))
-
 
 create table t like s
 
@@ -48,7 +48,10 @@ create view "v"([a]) as select * from "t"
 create database x
 
 
-/*ERROR , column*/
+/* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   CREATE STATEMENTS ERROR , column
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
+
 
 -- REPLACE , 11
 --create or table t(a int);
@@ -74,7 +77,7 @@ create database x
 
 -- a positive integer , 34/38
 --create or replace table t(a char())
---create or replace table t(a number(1,))
+--create or replace table t(a number(1,0))
 
 -- NULL , 37
 --create or replace table t(a int not nul)
