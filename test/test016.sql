@@ -29,7 +29,7 @@ drop database
 drop database db
 drop database $des
 
-my_view(age int) := SELECT age FROM my_table;
+--my_view(age int) := SELECT age FROM my_table;
 
 
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

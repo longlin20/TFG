@@ -1,6 +1,6 @@
 /*********************************************************/
 /*                                                       */
-/* MISC module for the BASIC language                    */
+/* MISC module for the SQL language                    */
 /*   Developed for SWI-Prolog 8.x and above              */
 /*                                                       */
 /*                             Fernando Saenz-Perez 2023 */
@@ -29,11 +29,15 @@
 /*********************************************************/
 
 :- module(misc,
-          [ current_position/3]).
+          [ current_position/3,
+            list_diff/3]).
 
 % current_position(-Position)//
 % Consult the position of the current token, without consuming it
 current_position(Position, [Token:Position|TPs], [Token:Position|TPs]) :-
   !.
 current_position(pos(last,last), [], []).
+
+list_diff(L1,L2,LO) :- 
+  append(LO,L2,L1).
 

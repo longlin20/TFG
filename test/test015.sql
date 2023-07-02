@@ -61,8 +61,9 @@ rename view v to s
 -- valid type , end of the program
 --alter table t1 add a
 
--- valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT) , 45
+-- valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT) , 45/20
 --alter table t1 add constraint primary key(a), primary key(a)
+--rename table t to s(a)
 
 --Semantic unknown_column(t, a1)/unknown_column(t1, a) , 28/29
 --alter table t alter column a1 set data type varchar(10)
@@ -84,9 +85,6 @@ rename view v to s
 -- TO , 15/16
 --rename table t(a) to s
 --rename table v as t
-
--- SQL DQL statement , 22
---rename table t to s(a)
 
 -- a positive integer , 46
 --alter table t1 alter a1 set data type number()

@@ -227,6 +227,11 @@ token(op(Operator)) -->>
   textual_operator(Operator),
   !.
 
+%parse Datalog constants, function (functor), and relation (predicate) symbols
+token(id_lc_start(Identifier)) -->>
+  lowercase_identifier_start(Identifier),
+  !.
+
 token(id(Identifier)) -->>
   identifier(Identifier),
   !.
@@ -310,7 +315,7 @@ operator('**')  -->> "**",  !, add_col(2).
 operator('*')   -->> "*",   !, inc_col. 
 %operator('#')   -->> "#",   !, inc_col. 
 operator('-')   -->> "-",   !, inc_col.
-operator('\\')   -->> "\\", !, inc_col.
+%operator('\\')   -->> "\\", !, inc_col.
 
 comparison_operator('!=')  -->> "!=",  !, add_col(2). % inequality
 comparison_operator('=')   -->> "=",   !, inc_col.
@@ -324,8 +329,9 @@ textual_operator('and') -->> lc("and"), not_more_char,  !, add_col(3).
 textual_operator('or')  -->> lc("or"),  not_more_char,  !, add_col(2).
 textual_operator('not') -->> lc("not"), not_more_char,  !, add_col(3).
 textual_operator('xor') -->> lc("xor"), not_more_char,  !, add_col(3).
-%textual_operator('rem') -->> lc("rem"), not_more_char,  !, add_col(3).
-%textual_operator('div') -->> lc("div"), not_more_char,  !, add_col(3).
+textual_operator('rem') -->> lc("rem"), not_more_char,  !, add_col(3).
+textual_operator('div') -->> lc("div"), not_more_char,  !, add_col(3).
+textual_operator('mod') -->> lc("mod"), not_more_char,  !, add_col(3).
 
 %punctuation quotes simple is in last line
 punctuation('(') -->> "(",   !, inc_col.
@@ -354,7 +360,6 @@ command('bc')                               -->> lc("bc"),                      
 command('by')                               -->> lc("by"),                               not_more_char,  !,  add_col(2).   
 command('candidate')                        -->> lc("candidate"),                        not_more_char,  !,  add_col(9).                         
 command('cascade')                          -->> lc("cascade"),                          not_more_char,  !,  add_col(7).                         
-command('case')                             -->> lc("case"),                             not_more_char,  !,  add_col(4).            
 command('character')                        -->> lc("character"),                        not_more_char,  !,  add_col(9).           
 command('char')                             -->> lc("char"),                             not_more_char,  !,  add_col(4).       
 command('check')                            -->> lc("check"),                            not_more_char,  !,  add_col(5).            
@@ -375,13 +380,15 @@ command('descending')                       -->> lc("descending"),              
 command('desc')                             -->> lc("desc"),                             not_more_char,  !,  add_col(4).        
 command('describe')                         -->> lc("describe"),                         not_more_char,  !,  add_col(8).  
 command('determined')                       -->> lc("determined"),                       not_more_char,  !,  add_col(10).  
-command('distinct')                         -->> lc("distinct"),                         not_more_char,  !,  add_col(8).             
+command('distinct')                         -->> lc("distinct"),                         not_more_char,  !,  add_col(8).        
+command('division')                         -->> lc("division"),                         not_more_char,  !,  add_col(8).                  
 command('drop')                             -->> lc("drop"),                             not_more_char,  !,  add_col(4).       
 command('else')                             -->> lc("else"),                             not_more_char,  !,  add_col(4).       
 command('end')                              -->> lc("end"),                              not_more_char,  !,  add_col(3).          
 command('escape')                           -->> lc("escape"),                           not_more_char,  !,  add_col(6).              
 command('except')                           -->> lc("except"),                           not_more_char,  !,  add_col(6).             
-command('exists')                           -->> lc("exists"),                           not_more_char,  !,  add_col(6).                 
+command('exists')                           -->> lc("exists"),                           not_more_char,  !,  add_col(6).      
+command('extract')                          -->> lc("extract"),                          not_more_char,  !,  add_col(7).                            
 command('false')                            -->> lc("false"),                            not_more_char,  !,  add_col(5).       
 command('fetch')                            -->> lc("fetch"),                            not_more_char,  !,  add_col(5).    
 command('float')                            -->> lc("float"),                            not_more_char,  !,  add_col(5).          
@@ -401,6 +408,7 @@ command('in')                               -->> lc("in"),                      
 command('is')                               -->> lc("is"),                               not_more_char,  !,  add_col(2).            
 command('join')                             -->> lc("join"),                             not_more_char,  !,  add_col(4).   
 command('key')                              -->> lc("key"),                              not_more_char,  !,  add_col(3).             
+command('left')                             -->> lc("left"),                             not_more_char,  !,  add_col(4).
 command('like')                             -->> lc("like"),                             not_more_char,  !,  add_col(4).            
 command('natural')                          -->> lc("natural"),                          not_more_char,  !,  add_col(7).           
 command('no')                               -->> lc("no"),                               not_more_char,  !,  add_col(2).       
@@ -419,6 +427,7 @@ command('references')                       -->> lc("references"),              
 command('rename')                           -->> lc("rename"),                           not_more_char,  !,  add_col(6).     
 command('replace')                          -->> lc("replace"),                          not_more_char,  !,  add_col(7).
 command('restrict')                         -->> lc("restrict"),                         not_more_char,  !,  add_col(8).           
+command('right')                            -->> lc("right"),                            not_more_char,  !,  add_col(5).
 command('rollback')                         -->> lc("rollback"),                         not_more_char,  !,  add_col(8).       
 command('rows')                             -->> lc("rows"),                             not_more_char,  !,  add_col(4).       
 command('savepoint')                        -->> lc("savepoint"),                        not_more_char,  !,  add_col(9).       
@@ -452,98 +461,95 @@ command('where')                            -->> lc("where"),                   
 command('with')                             -->> lc("with"),                             not_more_char,  !,  add_col(4).   
 command('work')                             -->> lc("work"),                             not_more_char,  !,  add_col(4).    
      
-function('sqrt'/1)                  -->> lc("sqrt"),                     not_more_char, !, add_col(4).
-function('ln'/1)                    -->> lc("ln"),                       not_more_char, !, add_col(2).
-function('log'/1)                   -->> lc("log"),                      not_more_char, !, add_col(3).
-function('log'/2)                   -->> lc("log"),                      not_more_char, !, add_col(3).
-function('sin'/1)                   -->> lc("sin"),                      not_more_char, !, add_col(3).
-function('cos'/1)                   -->> lc("cos"),                      not_more_char, !, add_col(3).
-function('tan'/1)                   -->> lc("tan"),                      not_more_char, !, add_col(3).
-function('cot'/1)                   -->> lc("cot"),                      not_more_char, !, add_col(3).
-function('asin'/1)                  -->> lc("asin"),                     not_more_char, !, add_col(4).
-function('acos'/1)                  -->> lc("acos"),                     not_more_char, !, add_col(4).
-function('atan'/1)                  -->> lc("atan"),                     not_more_char, !, add_col(4).
-function('acot'/1)                  -->> lc("acot"),                     not_more_char, !, add_col(4).
-function('abs'/1)                   -->> lc("abs"),                      not_more_char, !, add_col(3).
-function('power'/2)                 -->> lc("power"),                    not_more_char, !, add_col(5).
-function('exp'/1)                   -->> lc("exp"),                      not_more_char, !, add_col(3).
-function('float_integer_part'/1)    -->> lc("float_integer_part"),       not_more_char, !, add_col(18).
-function('float_fractional_part'/1) -->> lc("float_fractional_part"),    not_more_char, !, add_col(21).
-function('year'/1)                  -->> lc("year"),                     not_more_char, !, add_col(4).
-function('month'/1)                 -->> lc("month"),                    not_more_char, !, add_col(5).
-function('day'/1)                   -->> lc("day"),                      not_more_char, !, add_col(3).
-function('hour'/1)                  -->> lc("hour"),                     not_more_char, !, add_col(4).
-function('minute'/1)                -->> lc("minute"),                   not_more_char, !, add_col(6).
-function('second'/1)                -->> lc("second"),                   not_more_char, !, add_col(6).
-%function('float'/1)                 -->> lc("float"),                    not_more_char, !, add_col(5).
-function('integer'/1)               -->> lc("integer"),                  not_more_char, !, add_col(7).
-function('sign'/1)                  -->> lc("sign"),                     not_more_char, !, add_col(4).
-function('gcd'/2)                   -->> lc("gcd"),                      not_more_char, !, add_col(3).
-function('min'/2)                   -->> lc("min"),                      not_more_char, !, add_col(3).
-function('max'/2)                   -->> lc("max"),                      not_more_char, !, add_col(3).
-function('mod'/2)                   -->> lc("mod"),                      not_more_char, !, add_col(3).
-function('truncate'/1)              -->> lc("truncate"),                 not_more_char, !, add_col(8).
-function('truncate'/2)              -->> lc("truncate"),                 not_more_char, !, add_col(8).
-function('trunc'/1)                 -->> lc("trunc"),                    not_more_char, !, add_col(5).
-function('trunc'/2)                 -->> lc("trunc"),                    not_more_char, !, add_col(5).
-function('round'/1)                 -->> lc("round"),                    not_more_char, !, add_col(5).
-function('round'/2)                 -->> lc("round"),                    not_more_char, !, add_col(5).
-function('floor'/1)                 -->> lc("floor"),                    not_more_char, !, add_col(5).
-function('ceiling'/1)               -->> lc("ceiling"),                  not_more_char, !, add_col(7).
-function('rand'/1)                  -->> lc("rand"),                     not_more_char, !, add_col(4).
-function('rand'/2)                  -->> lc("rand"),                     not_more_char, !, add_col(4).
-function('concat'/2)                -->> lc("concat"),                   not_more_char, !, add_col(6).
-function('length'/1)                -->> lc("length"),                   not_more_char, !, add_col(6).
-function('lower'/1)                 -->> lc("lower"),                    not_more_char, !, add_col(5).
-function('lpad'/2)                  -->> lc("lpad"),                     not_more_char, !, add_col(4).
-function('lpad'/3)                  -->> lc("lpad"),                     not_more_char, !, add_col(4).
-function('rpad'/2)                  -->> lc("rpad"),                     not_more_char, !, add_col(4).
-function('rpad'/3)                  -->> lc("rpad"),                     not_more_char, !, add_col(4).
-function('instr'/2)                 -->> lc("instr"),                    not_more_char, !, add_col(5).
-%function('replace'/3)               -->> lc("replace"),                  not_more_char, !, add_col(7).
-function('reverse'/1)               -->> lc("reverse"),                  not_more_char, !, add_col(7).
-function('substr'/3)                -->> lc("substr"),                   not_more_char, !, add_col(6).
-function('upper'/1)                 -->> lc("upper"),                    not_more_char, !, add_col(5).
-function('left'/2)                  -->> lc("left"),                     not_more_char, !, add_col(4).
-function('ltrim'/1)                 -->> lc("ltrim"),                    not_more_char, !, add_col(5).
-function('rtrim'/1)                 -->> lc("rtrim"),                    not_more_char, !, add_col(5).
-function('trim'/1)                  -->> lc("trim"),                     not_more_char, !, add_col(4).
-function('repeat'/2)                -->> lc("repeat"),                   not_more_char, !, add_col(6).
-function('right'/2)                 -->> lc("right"),                    not_more_char, !, add_col(5).
-function('space'/1)                 -->> lc("space"),                    not_more_char, !, add_col(5).
-function('datetime_add'/2)          -->> lc("datetime_add"),             not_more_char, !, add_col(12).
-function('datetime_sub'/2)          -->> lc("datetime_sub"),             not_more_char, !, add_col(12).
-function('add_months'/2)            -->> lc("add_months"),               not_more_char, !, add_col(10).
-function('current_time'/0)          -->> lc("current_time"),             not_more_char, !, add_col(12).
-function('current_datetime'/0)      -->> lc("current_datetime"),         not_more_char, !, add_col(16).
-function('current_date'/0)          -->> lc("current_date"),             not_more_char, !, add_col(12).
-function('sysdate'/0)               -->> lc("sysdate"),                  not_more_char, !, add_col(7).
-function('to_char'/1)               -->> lc("to_char"),                  not_more_char, !, add_col(7).
-function('to_char'/2)               -->> lc("to_char"),                  not_more_char, !, add_col(7).
-function('to_date'/1)               -->> lc("to_date"),                  not_more_char, !, add_col(7).
-function('to_date'/2)               -->> lc("to_date"),                  not_more_char, !, add_col(7).
-function('cast'/2)                  -->> lc("cast"),                     not_more_char, !, add_col(4).
-function('coalesce'/n)              -->> lc("coalesce"),                 not_more_char, !, add_col(8).
-function('greatest'/n)              -->> lc("greatest"),                 not_more_char, !, add_col(8).
-function('iif'/3)                   -->> lc("iif"),                      not_more_char, !, add_col(3).
-function('least'/n)                 -->> lc("least"),                    not_more_char, !, add_col(5).
-function('nvl2'/3)                  -->> lc("nvl2"),                     not_more_char, !, add_col(4).
-function('nvl'/2)                   -->> lc("nvl"),                      not_more_char, !, add_col(3).
-function('nullif'/2)                -->> lc("nullif"),                   not_more_char, !, add_col(6).
-function('avg'/1)                   -->> lc("avg"),                      not_more_char, !, add_col(3).
-function('count'/1)                 -->> lc("count"),                    not_more_char, !, add_col(5).
-function('count'/0)                 -->> lc("count"),                    not_more_char, !, add_col(5).
-function('max'/1)                   -->> lc("max"),                      not_more_char, !, add_col(3).
-function('min'/1)                   -->> lc("min"),                      not_more_char, !, add_col(3).
-function('sum'/1)                   -->> lc("sum"),                      not_more_char, !, add_col(3).
-function('times'/1)                 -->> lc("times"),                    not_more_char, !, add_col(5).
-function('extract'/1)               -->> lc("extract"),                  not_more_char, !, add_col(7).    
+function('sqrt')                  -->> lc("sqrt"),                     not_more_char, !, add_col(4).
+function('ln')                    -->> lc("ln"),                       not_more_char, !, add_col(2).
+function('log')                   -->> lc("log"),                      not_more_char, !, add_col(3).
+function('exp')                   -->> lc("exp"),                      not_more_char, !, add_col(3).
+function('sin')                   -->> lc("sin"),                      not_more_char, !, add_col(3).
+function('cos')                   -->> lc("cos"),                      not_more_char, !, add_col(3).
+function('tan')                   -->> lc("tan"),                      not_more_char, !, add_col(3).
+function('cot')                   -->> lc("cot"),                      not_more_char, !, add_col(3).
+function('asin')                  -->> lc("asin"),                     not_more_char, !, add_col(4).
+function('acos')                  -->> lc("acos"),                     not_more_char, !, add_col(4).
+function('atan')                  -->> lc("atan"),                     not_more_char, !, add_col(4).
+function('acot')                  -->> lc("acot"),                     not_more_char, !, add_col(4).
+function('abs')                   -->> lc("abs"),                      not_more_char, !, add_col(3).
+function('mod')                   -->> lc("mod"),                      not_more_char, !, add_col(3).
+%function('float')                 -->> lc("float"),                    not_more_char, !, add_col(5).
+function('integer')               -->> lc("integer"),                  not_more_char, !, add_col(7).
+function('sign')                  -->> lc("sign"),                     not_more_char, !, add_col(4).
+function('gcd')                   -->> lc("gcd"),                      not_more_char, !, add_col(3).
+function('min')                   -->> lc("min"),                      not_more_char, !, add_col(3).
+function('max')                   -->> lc("max"),                      not_more_char, !, add_col(3).
+function('truncate')              -->> lc("truncate"),                 not_more_char, !, add_col(8).
+function('trunc')                 -->> lc("trunc"),                    not_more_char, !, add_col(5).
+function('float_integer_part')    -->> lc("float_integer_part"),       not_more_char, !, add_col(18).
+function('float_fractional_part') -->> lc("float_fractional_part"),    not_more_char, !, add_col(21).
+function('round')                 -->> lc("round"),                    not_more_char, !, add_col(5).
+function('floor')                 -->> lc("floor"),                    not_more_char, !, add_col(5).
+function('ceiling')               -->> lc("ceiling"),                  not_more_char, !, add_col(7).
+function('rand')                  -->> lc("rand"),                     not_more_char, !, add_col(4).
+function('power')                 -->> lc("power"),                    not_more_char, !, add_col(5).
 
-function(Fn/1)-->>
-  udef_fn_name(Fn),
-  !,
-  {atom_length(Fn, L)},
-   add_col(L).
+function('avg')                   -->> lc("avg"),                      not_more_char, !, add_col(3).
+function('avg_distinct')          -->> lc("avg_distinct"),             not_more_char, !, add_col(12).
+function('count')                 -->> lc("count"),                    not_more_char, !, add_col(5).
+function('count_distinct')        -->> lc("count_distinct"),           not_more_char, !, add_col(14).
+function('sum')                   -->> lc("sum"),                      not_more_char, !, add_col(3).
+function('sum_distinct')          -->> lc("sum_distinct"),             not_more_char, !, add_col(12).
+function('times')                 -->> lc("times"),                    not_more_char, !, add_col(5).
+function('times_distinct')        -->> lc("times_distinct"),           not_more_char, !, add_col(14).
+
+%function('pi')                    -->> lc("pi"),                       not_more_char, !, add_col(2).
+%function('e')                     -->> lc("e"),                        not_more_char, !, add_col(1).
+
+function('length')                -->> lc("length"),                   not_more_char, !, add_col(6).
+function('concat')                -->> lc("concat"),                   not_more_char, !, add_col(6).
+function('instr')                 -->> lc("instr"),                    not_more_char, !, add_col(5).
+%function('left')                  -->> lc("left"),                     not_more_char, !, add_col(4).
+function('lower')                 -->> lc("lower"),                    not_more_char, !, add_col(5).
+function('lpad')                  -->> lc("lpad"),                     not_more_char, !, add_col(4).
+function('ltrim')                 -->> lc("ltrim"),                    not_more_char, !, add_col(5).
+function('repeat')                -->> lc("repeat"),                   not_more_char, !, add_col(6).
+%function('replace')               -->> lc("replace"),                  not_more_char, !, add_col(7).
+function('reverse')               -->> lc("reverse"),                  not_more_char, !, add_col(7).
+function('rpad')                  -->> lc("rpad"),                     not_more_char, !, add_col(4).
+%function('right')                 -->> lc("right"),                    not_more_char, !, add_col(5).
+function('rtrim')                 -->> lc("rtrim"),                    not_more_char, !, add_col(5).
+function('space')                 -->> lc("space"),                    not_more_char, !, add_col(5).
+function('substr')                -->> lc("substr"),                   not_more_char, !, add_col(6).
+function('trim')                  -->> lc("trim"),                     not_more_char, !, add_col(4).
+function('upper')                 -->> lc("upper"),                    not_more_char, !, add_col(5).
+
+function('year')                  -->> lc("year"),                     not_more_char, !, add_col(4).
+function('month')                 -->> lc("month"),                    not_more_char, !, add_col(5).
+function('day')                   -->> lc("day"),                      not_more_char, !, add_col(3).
+function('hour')                  -->> lc("hour"),                     not_more_char, !, add_col(4).
+function('minute')                -->> lc("minute"),                   not_more_char, !, add_col(6).
+function('second')                -->> lc("second"),                   not_more_char, !, add_col(6).
+function('last_day')              -->> lc("last_day"),                 not_more_char, !, add_col(8).
+function('to_char')               -->> lc("to_char"),                  not_more_char, !, add_col(7).
+function('to_date')               -->> lc("to_date"),                  not_more_char, !, add_col(7).
+function('sysdate')               -->> lc("sysdate"),                  not_more_char, !, add_col(7).
+function('current_date')          -->> lc("current_date"),             not_more_char, !, add_col(12).
+function('current_time')          -->> lc("current_time"),             not_more_char, !, add_col(12).
+function('current_timestamp')     -->> lc("current_timestamp"),        not_more_char, !, add_col(17).
+function('datetime_add')          -->> lc("datetime_add"),             not_more_char, !, add_col(12).
+function('datetime_sub')          -->> lc("datetime_sub"),             not_more_char, !, add_col(12).
+function('add_months')            -->> lc("add_months"),               not_more_char, !, add_col(10).
+%function('current_datetime'/0)      -->> lc("current_datetime"),         not_more_char, !, add_col(16).
+
+function('cast')                  -->> lc("cast"),                     not_more_char, !, add_col(4).
+
+function('coalesce')              -->> lc("coalesce"),                 not_more_char, !, add_col(8).
+function('greatest')              -->> lc("greatest"),                 not_more_char, !, add_col(8).
+function('least')                 -->> lc("least"),                    not_more_char, !, add_col(5).
+function('nvl')                   -->> lc("nvl"),                      not_more_char, !, add_col(3).
+function('nvl2')                  -->> lc("nvl2"),                     not_more_char, !, add_col(4).
+function('nullif')                -->> lc("nullif"),                   not_more_char, !, add_col(6).
+function('iif')                   -->> lc("iif"),                      not_more_char, !, add_col(3).
+function('case')                  -->> lc("case"),                     not_more_char, !,  add_col(4).            
+
 
 lc([Code|Codes]) -->>
   [C],
@@ -718,10 +724,19 @@ quotes_id_codes([Code|Codes]) -->>
   [Code],
   quotes_id_codes(Codes).
 
+% Rule to recognize an identifier start by lowercase
+lowercase_identifier_start(Identifier) -->>
+  [Code],
+  {is_lowercase_letter_code(Code)},
+  identifier_dollar_chars_star(Codes),
+  {atom_codes(Identifier, [Code|Codes])},
+  {length([Code|Codes], Length)},
+  add_col(Length).
+
 % Rule to recognize an identifier
 identifier(Identifier) -->>
-  (letter(Code); dollar_sign(Code); underscore(Code)), % Allow letters or underscores as the first character
-  alphanum_star(Codes),
+  (letter(Code); dollar_sign(Code)/*; underscore(Code)*/), % Allow letters or $ as the first character
+  identifier_dollar_chars_star(Codes),
   {atom_codes(Identifier, [Code|Codes])},
   {length([Code|Codes], Length)},
   add_col(Length).
@@ -732,12 +747,21 @@ identifier(_Identifier) -->>
 
 % alphanum_star(-Codes)//
 % Zero or more alphanumeric codes
-alphanum_star([Code|Codes]) -->>
+identifier_chars_star([Code|Codes]) -->>
   ( letter(Code)
   ; digit_code(Code)
   ; underscore(Code)),
-  alphanum_star(Codes).
-alphanum_star([]) -->>
+  identifier_chars_star(Codes).
+identifier_chars_star([]) -->>
+  [].
+
+identifier_dollar_chars_star([Code|Codes]) -->>
+  ( letter(Code)
+  ; digit_code(Code)
+  ; underscore(Code)
+  ; dollar_sign(Code)),
+  identifier_dollar_chars_star(Codes).
+identifier_dollar_chars_star([]) -->>
   [].
 
 % letter(-LetterCode)//
@@ -794,7 +818,7 @@ to_lowercase_code(Code, DCode) :-
   DCode is Code + DA - UA.
 
 to_lowercase_code(Code, Code) :-
-  (is_number_code(Code); is_underscore_code(Code)),
+  (is_number_code(Code); is_underscore_code(Code); is_dollar_sign_code(Code)),
   !.
 to_lowercase_code(Code, Code).
 
@@ -828,14 +852,6 @@ non_visible_code(13).  % carriage return
 
 eoc([], []).
 
-udef_fn_name(Fn) -->>
-  identifier(Fn),
-  {udef_fn_name(Fn)}.
-
-udef_fn_name(Fn) :-
-  atom_concat(fn, T, Fn),
-  T \== ''.
-  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Tests
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -871,43 +887,43 @@ test007 :-
   test(lexer, lex, "'ab' 1.0", [str(ab):pos(1,1),frac(1, 0):pos(1,6)]).
 
 test008 :-
-  test(lexer, lex, 'test/test001.sql', [cmd(select):pos(1,1),id(id):pos(1,8),punct(','):pos(1,10),id(age):pos(1,12),punct(nl):pos(1,15),cmd(from):pos(2,1),id(user1):pos(2,6),punct(nl):pos(2,11),cmd(where):pos(3,1),id(age):pos(3,7),comparisonOp(>):pos(3,11),int(18):pos(3,13),punct(;):pos(3,15)]).
+  test(lexer, lex, 'test/test001.sql', [cmd(select):pos(1,1),id(id):pos(1,8),punct(','):pos(1,10),id_lc_start(age):pos(1,12),punct(nl):pos(1,15),cmd(from):pos(2,1),id_lc_start(user1):pos(2,6),punct(nl):pos(2,11),cmd(where):pos(3,1),id_lc_start(age):pos(3,7),comparisonOp(>):pos(3,11),int(18):pos(3,13),punct(;):pos(3,15)]).
 
 test009 :-
-  test(lexer, lex, 'test/test002.sql', [cmd(select):pos(1,1),id(nombreproducto):pos(1,8),punct(','):pos(1,22),id(precio):pos(1,24),cmd(from):pos(1,31),quoted_id('Productos'):pos(1,36),punct(nl):pos(1,47),cmd(where):pos(2,1),id(precio):pos(2,7),op(-):pos(2,14),punct('('):pos(2,16),cmd(select):pos(2,17),fn(avg/1):pos(2,24),punct('('):pos(2,27),id(precio):pos(2,28),punct(')'):pos(2,34),cmd(from):pos(2,36),id(productos):pos(2,41),punct(')'):pos(2,50),punct(;):pos(2,51)]).
+  test(lexer, lex, 'test/test002.sql', [cmd(select):pos(1,1),id(nombreproducto):pos(1,8),punct(','):pos(1,22),id(precio):pos(1,24),cmd(from):pos(1,31),quoted_id('Productos'):pos(1,36),punct(nl):pos(1,47),cmd(where):pos(2,1),id(precio):pos(2,7),op(-):pos(2,14),punct('('):pos(2,16),cmd(select):pos(2,17),fn(avg):pos(2,24),punct('('):pos(2,27),id(precio):pos(2,28),punct(')'):pos(2,34),cmd(from):pos(2,36),id(productos):pos(2,41),punct(')'):pos(2,50),punct(;):pos(2,51)]).
 
 test010 :-
-  test(lexer, lex, 'test/test003.sql', [quoted_id(nOmbre):pos(1,1),quoted_id('no"3mbre'):pos(1,10),quoted_id('NOMBRE'):pos(1,22),punct(nl):pos(1,30),str(nOmbre):pos(2,1),str(nombre):pos(2,10),str('NOMBRE'):pos(2,19),punct(nl):pos(2,28),id(nombre):pos(3,1),id(nombre):pos(3,8),id(nombre):pos(3,15)]).
+  test(lexer, lex, 'test/test003.sql', [quoted_id(nOmbre):pos(1,1),quoted_id('no"3mbre'):pos(1,10),quoted_id('NOMBRE'):pos(1,22),punct(nl):pos(1,30),str(nOmbre):pos(2,1),str(nombre):pos(2,10),str('NOMBRE'):pos(2,19),punct(nl):pos(2,28),id_lc_start(nombre):pos(3,1),id_lc_start(nombre):pos(3,8),id(nombre):pos(3,15)]).
 
 test011 :-
-  test(lexer, lex, 'test/test004.sql', [str('X=\'\'\'X'):pos(1,1),id(a):pos(1,13),punct(nl):pos(1,14),str(s):pos(2,1),id(b):pos(2,5),punct(nl):pos(2,6),str('"s"'):pos(3,1),id(c):pos(3,7),punct(nl):pos(3,8),str('"s"s""\''):pos(4,1),punct(nl):pos(4,11),str('It\'s raining outside'):pos(5,1),id(d):pos(5,25),punct(nl):pos(5,26),str('O\'Connell'):pos(6,1),punct(nl):pos(6,13),str(' d '):pos(7,1),punct(nl):pos(7,6),str('O\'Connell'):pos(8,1),id(e):pos(8,14),punct(nl):pos(8,15),str(' %e_ '):pos(9,1),punct(nl):pos(9,8),str(''):pos(10,1),punct(nl):pos(10,3),str('_12e'):pos(11,1)]).
+  test(lexer, lex, 'test/test004.sql', [str('X=\'\'\'X'):pos(1,1),id_lc_start(a):pos(1,13),punct(nl):pos(1,14),str(s):pos(2,1),id_lc_start(b):pos(2,5),punct(nl):pos(2,6),str('"s"'):pos(3,1),id_lc_start(c):pos(3,7),punct(nl):pos(3,8),str('"s"s""\''):pos(4,1),punct(nl):pos(4,11),str('It\'s raining outside'):pos(5,1),id_lc_start(d):pos(5,25),punct(nl):pos(5,26),str('O\'Connell'):pos(6,1),punct(nl):pos(6,13),str(' d '):pos(7,1),punct(nl):pos(7,6),str('O\'Connell'):pos(8,1),id_lc_start(pie):pos(8,14),punct(nl):pos(8,17),str(' %e_ '):pos(9,1),punct(nl):pos(9,8),str(''):pos(10,1),punct(nl):pos(10,3),str('_12e'):pos(11,1)]).
       
 test012 :-
-  test(lexer, lex, 'test/test005.sql', [id('_algo'):pos(1,1),punct(nl):pos(1,6),cmd(varchar2):pos(2,1),id(a_2):pos(2,10),punct(nl):pos(2,13),id(algo_):pos(3,1),punct(nl):pos(3,6),id('__e'):pos(4,1),punct(nl):pos(4,4),id(e__):pos(5,1),punct(nl):pos(5,4),id('_e_'):pos(6,1),punct(nl):pos(6,4),id('$1'):pos(7,1),id('$t1t'):pos(7,4),str('$T1.t'):pos(7,9),quoted_id('$T.1'):pos(7,17)]).
+  test(lexer, lex, 'test/test005.sql', [cmd(varchar2):pos(1,1),id_lc_start(a_2):pos(1,10),punct(nl):pos(1,13),id_lc_start(algo_):pos(2,1),punct(nl):pos(2,6),id('$1'):pos(3,1),id('$t1t'):pos(3,4),str('$T1.t'):pos(3,9),quoted_id('$T.1'):pos(3,17),punct(nl):pos(3,23),id('$v$'):pos(4,1),str('$V$'):pos(4,5)]).
 
 test013 :-
-  test(lexer, lex, 'test/test006.sql', [cmd(select):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,67),cmd(from):pos(2,1),id(tabla):pos(2,6)]).
+  test(lexer, lex, 'test/test006.sql', [cmd(select):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,67),cmd(from):pos(2,1),id_lc_start(tabla):pos(2,6)]).
 
 test014 :-
-  test(lexer, lex, 'test/test007.sql', [fn(times/1):pos(1,1),cmd(timestamp):pos(1,7),cmd(no):pos(1,17),op(not):pos(1,20),fn(sign/1):pos(1,24),id(timesa):pos(1,29),id(times1):pos(1,36),punct(nl):pos(1,42),fn(substr/3):pos(2,1),id(substring):pos(2,8),punct(nl):pos(2,17)]).
+  test(lexer, lex, 'test/test007.sql', [fn(times):pos(1,1),cmd(timestamp):pos(1,7),cmd(no):pos(1,17),op(not):pos(1,20),fn(sign):pos(1,24),id_lc_start(timesa):pos(1,29),id_lc_start(times1):pos(1,36),punct(nl):pos(1,42),fn(substr):pos(2,1),id_lc_start(substring):pos(2,8),punct(nl):pos(2,17)]).
 
 test015 :-
   test(lexer, lex, 'test/test008.sql', [comment('\nEste es un comentario\nh\nde varias lneas\n'):pos(1,1),punct(nl):pos(5,1),int(1):pos(6,1)]).
   
 test016 :-
-  test(lexer, lex, 'test/test009.sql', [cmd(alter):pos(1,1),cmd(table):pos(1,7),id(a):pos(1,13),cmd(add):pos(1,15),cmd(constraint):pos(1,20),cmd(primary):pos(1,31),cmd(key):pos(1,39),punct('('):pos(1,43),id(a):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter):pos(3,1),cmd(table):pos(3,7),id(b):pos(3,13),cmd(drop):pos(3,15),cmd(constraint):pos(3,20),op(not):pos(3,31),cmd(null):pos(3,35),id(b):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter):pos(5,1),cmd(table):pos(5,7),id(d):pos(5,13),cmd(add):pos(5,15),cmd(constraint):pos(5,20),cmd(check):pos(5,31),punct('('):pos(5,37),id(a):pos(5,38),comparisonOp(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
+  test(lexer, lex, 'test/test009.sql', [cmd(alter):pos(1,1),cmd(table):pos(1,7),id_lc_start(a):pos(1,13),cmd(add):pos(1,15),cmd(constraint):pos(1,20),cmd(primary):pos(1,31),cmd(key):pos(1,39),punct('('):pos(1,43),id_lc_start(a):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter):pos(3,1),cmd(table):pos(3,7),id_lc_start(b):pos(3,13),cmd(drop):pos(3,15),cmd(constraint):pos(3,20),op(not):pos(3,31),cmd(null):pos(3,35),id_lc_start(b):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter):pos(5,1),cmd(table):pos(5,7),id_lc_start(d):pos(5,13),cmd(add):pos(5,15),cmd(constraint):pos(5,20),cmd(check):pos(5,31),punct('('):pos(5,37),id_lc_start(a):pos(5,38),comparisonOp(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
 
 test017 :-
-  test(lexer, lex, 'test/test010.sql', [cmd(select):pos(1,1),op(*):pos(1,8),cmd(from):pos(1,10),id(tabla):pos(1,15),cmd(where):pos(1,21),id(nombre):pos(1,27),comparisonOp(=):pos(1,34),str('Juan Prez'):pos(1,36),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(select):pos(3,1),op(*):pos(3,8),cmd(from):pos(3,10),id(customers):pos(3,15),punct(nl):pos(3,24),cmd(where):pos(4,1),id(customername):pos(4,7),cmd(like):pos(4,20),str('a%'):pos(4,25),punct(;):pos(4,29),punct(nl):pos(4,30),punct(nl):pos(5,1),cmd(insert):pos(6,1),cmd(into):pos(6,8),id(a):pos(6,13),cmd(values):pos(6,15),punct('('):pos(6,22),str(a1):pos(6,23),punct(')'):pos(6,27),punct(;):pos(6,28)]).
+  test(lexer, lex, 'test/test010.sql', [cmd(select):pos(1,1),op(*):pos(1,8),cmd(from):pos(1,10),id_lc_start(tabla):pos(1,15),cmd(where):pos(1,21),id_lc_start(nombre):pos(1,27),comparisonOp(=):pos(1,34),str('Juan Prez'):pos(1,36),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(select):pos(3,1),op(*):pos(3,8),cmd(from):pos(3,10),id(customers):pos(3,15),punct(nl):pos(3,24),cmd(where):pos(4,1),id(customername):pos(4,7),cmd(like):pos(4,20),str('a%'):pos(4,25),punct(;):pos(4,29),punct(nl):pos(4,30),punct(nl):pos(5,1),cmd(insert):pos(6,1),cmd(into):pos(6,8),id_lc_start(a):pos(6,13),cmd(values):pos(6,15),punct('('):pos(6,22),str(a1):pos(6,23),punct(')'):pos(6,27),punct(;):pos(6,28)]).
 
 test018 :-
-  test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select):pos(2,1),op(*):pos(2,8),cmd(from):pos(2,10),id(t):pos(2,15),punct(','):pos(2,16),id(s):pos(2,17),cmd(where):pos(2,19),id(t):pos(2,25),punct('.'):pos(2,26),id(a):pos(2,27),comparisonOp(=):pos(2,28),id(s):pos(2,29),punct('.'):pos(2,30),id(a):pos(2,31),op(and):pos(2,33),id(t):pos(2,37),punct('.'):pos(2,38),id(b):pos(2,39),comparisonOp(=):pos(2,40),id(s):pos(2,41),punct('.'):pos(2,42),id(b):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
+  test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select):pos(2,1),op(*):pos(2,8),cmd(from):pos(2,10),id_lc_start(t):pos(2,15),punct(','):pos(2,16),id_lc_start(s):pos(2,17),cmd(where):pos(2,19),id_lc_start(t):pos(2,25),punct('.'):pos(2,26),id_lc_start(a):pos(2,27),comparisonOp(=):pos(2,28),id_lc_start(s):pos(2,29),punct('.'):pos(2,30),id_lc_start(a):pos(2,31),op(and):pos(2,33),id_lc_start(t):pos(2,37),punct('.'):pos(2,38),id_lc_start(b):pos(2,39),comparisonOp(=):pos(2,40),id_lc_start(s):pos(2,41),punct('.'):pos(2,42),id_lc_start(b):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
 
 test019 :-
-  test(lexer, lex, 'test/test012.sql', [cmd(create):pos(1,1),op(or):pos(1,8),cmd(replace):pos(1,11),cmd(view):pos(1,19),id(v1_1):pos(1,24),punct('('):pos(1,28),id(a):pos(1,29),punct(')'):pos(1,30),cmd(as):pos(1,32),cmd(select):pos(1,35),id(t1):pos(1,42),punct('.'):pos(1,44),id(a):pos(1,45),cmd(from):pos(1,47),id(v1_2):pos(1,52),id(t1):pos(1,57),punct(','):pos(1,59),id(v2_2):pos(1,60),id(t2):pos(1,65),cmd(where):pos(1,68),id(t1):pos(1,74),punct('.'):pos(1,76),id(a):pos(1,77),comparisonOp(=):pos(1,78),id(t2):pos(1,79),punct('.'):pos(1,81),id(a):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert):pos(3,1),cmd(into):pos(3,8),id(t):pos(3,13),cmd(values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
+  test(lexer, lex, 'test/test012.sql', [cmd(create):pos(1,1),op(or):pos(1,8),cmd(replace):pos(1,11),cmd(view):pos(1,19),id_lc_start(v1_1):pos(1,24),punct('('):pos(1,28),id_lc_start(a):pos(1,29),punct(')'):pos(1,30),cmd(as):pos(1,32),cmd(select):pos(1,35),id_lc_start(t1):pos(1,42),punct('.'):pos(1,44),id_lc_start(a):pos(1,45),cmd(from):pos(1,47),id_lc_start(v1_2):pos(1,52),id_lc_start(t1):pos(1,57),punct(','):pos(1,59),id_lc_start(v2_2):pos(1,60),id_lc_start(t2):pos(1,65),cmd(where):pos(1,68),id_lc_start(t1):pos(1,74),punct('.'):pos(1,76),id_lc_start(a):pos(1,77),comparisonOp(=):pos(1,78),id_lc_start(t2):pos(1,79),punct('.'):pos(1,81),id_lc_start(a):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert):pos(3,1),cmd(into):pos(3,8),id_lc_start(t):pos(3,13),cmd(values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
 
 test020 :-
-  test(lexer, lex, "a1.2", [id(a1):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      
+  test(lexer, lex, "a1.2", [id_lc_start(a1):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      
 
 test021 :-
   test(lexer, lex, "1a", failure(error('Lexical', number, pos(1,2)))). 
@@ -928,7 +944,7 @@ test026 :-
   test(lexer, lex, "10 \n 1.", failure(error('Lexical', fractional, pos(2,4)))).
 
 test027 :-
-  test(lexer, lex, "as_e@", failure(error('Lexical', identifier, pos(1, 1)))).
+  test(lexer, lex, "_1", failure(error('Lexical', token, pos(1, 1)))).
 
 test028 :-
   test(lexer, lex, 'test/test013.sql',  [int(2):pos(1,1),punct(nl):pos(1,2),op(+):pos(2,1),int(2):pos(2,2),punct(nl):pos(2,3),op(-):pos(3,1),int(2):pos(3,2),punct(nl):pos(3,3),frac(2,2):pos(4,1),punct(nl):pos(4,4),op(+):pos(5,1),frac(2,2):pos(5,2),punct(nl):pos(5,5),op(-):pos(6,1),frac(2,2):pos(6,2),punct(nl):pos(6,5),float(2,0,2):pos(7,1),punct(nl):pos(7,4),float(2,0,-2):pos(8,1),punct(nl):pos(8,5),op(-):pos(9,1),float(2,0,2):pos(9,2),punct(nl):pos(9,5),op(-):pos(10,1),float(2,0,2):pos(10,2),punct(nl):pos(10,6),op(-):pos(11,1),float(2,0,-2):pos(11,2),punct(nl):pos(11,6),float(2,2,2):pos(12,1),punct(nl):pos(12,6),float(2,2,-2):pos(13,1),punct(nl):pos(13,7),op(+):pos(14,1),float(2,2,-2):pos(14,2),punct(nl):pos(14,8),op(-):pos(15,1),float(2,2,2):pos(15,2),punct(nl):pos(15,7),op(-):pos(16,1),float(2,2,-2):pos(16,2)]).
