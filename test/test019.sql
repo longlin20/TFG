@@ -1,30 +1,53 @@
 /*% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% % DML (Data Manipulation Language) statements
+% % DQL (Data Query Language) statements
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-DELETE and UPTADE STATEMENTS
+UNION, EXCEPT, MINUS, INTERSECT STATEMENTS
 
-% DMLstmt ::=
-%   DELETE FROM TableName [[AS] Identifier] [WHERE Condition]
+% DQLstmt ::=
+%   (DQLstmt)
 %   |
-%   UPDATE TableName [[AS] Identifier] SET Att=Expr {,Att=Expr} [WHERE Condition]*/
+%   UBSQL
 
---delete from t1
---delete from t1 as "newTableName"
---delete from c where b='a1';
---DELETE FROM t WHERE edad > 0;
---delete from b where b in (select * from a);
---delete from a where not exists (select * from c where c.a=a.a);*/
---delete from "s"
---update t as d set a=1
---update t set a=1
+% UBSQL ::= 
+%   DQLstmt UNION [ALL] DQLstmt
+%   |
+%   DQLstmt EXCEPT [ALL] DQLstmt
+%   |
+%   DQLstmt MINUS [ALL] DQLstmt
+%   |
+%   DQLstmt INTERSECT [ALL] DQLstmt*/
 
---delete from t WHERE ((a.age > 25) AND (salary > 50000))
---delete from t WHERE ((city = 'San Francisco') AND ((age >= 25) OR (city = 'New York')))
---delete from t WHERE (((status = 'active')) AND ((city = 'London')) OR ((age < 30)))
+/*
+select * from a union select * from b;
+create view parent(parent,child) as select * from father union select * from mother;
+select * from p union select * from q union select pqs.x,p.y from pqs,p where pqs.y=p.x union select pqs.x,q.y from pqs,q where pqs.y=q.x;
+create view n(n) as select 0 union all select n+1 from n
 
-/*ERROR*/
 
--- closing parenthesis ''')'''
---delete from t WHERE ((name = 'John Doe')
---delete from t WHERE (((a.age > 25)) AND ((salary > 50000))
+select * from a except select * from b;
+SELECT dni FROM vista1 EXCEPT ((SELECT dniEmp FROM distribucion) UNION (SELECT dniDir FROM proyectos));
+
+CREATE VIEW vista2 AS SELECT dni FROM programadores INTERSECT SELECT dni FROM analistas;
+*/
+
+--TODO
+
+/*
+(select * from s) union (select * from t);
+(select * from s) intersect (select * from t);
+(select * from s) except (select * from t);
+*/
+
+select a from s where b not in (select c from t)
+
+
+
+/* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   UNION, EXCEPT, MINUS, INTERSECT STATEMENTS ERROR , column
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
+
+
+-- select statement , 23
+--select * from a union selct * from b;
+--SELECT * FROM s UNION Al SELECT * FROM q;

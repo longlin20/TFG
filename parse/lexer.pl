@@ -390,7 +390,8 @@ command('except')                           -->> lc("except"),                  
 command('exists')                           -->> lc("exists"),                           not_more_char,  !,  add_col(6).      
 command('extract')                          -->> lc("extract"),                          not_more_char,  !,  add_col(7).                            
 command('false')                            -->> lc("false"),                            not_more_char,  !,  add_col(5).       
-command('fetch')                            -->> lc("fetch"),                            not_more_char,  !,  add_col(5).    
+command('fetch')                            -->> lc("fetch"),                            not_more_char,  !,  add_col(5). 
+command('first')                            -->> lc("first"),                            not_more_char,  !,  add_col(5).       
 command('float')                            -->> lc("float"),                            not_more_char,  !,  add_col(5).          
 command('foreign')                          -->> lc("foreign"),                          not_more_char,  !,  add_col(7).            
 command('from')                             -->> lc("from"),                             not_more_char,  !,  add_col(4).       
@@ -409,7 +410,9 @@ command('is')                               -->> lc("is"),                      
 command('join')                             -->> lc("join"),                             not_more_char,  !,  add_col(4).   
 command('key')                              -->> lc("key"),                              not_more_char,  !,  add_col(3).             
 command('left')                             -->> lc("left"),                             not_more_char,  !,  add_col(4).
-command('like')                             -->> lc("like"),                             not_more_char,  !,  add_col(4).            
+command('like')                             -->> lc("like"),                             not_more_char,  !,  add_col(4).      
+command('limit')                            -->> lc("limit"),                            not_more_char,  !,  add_col(5).               
+command('minus')                            -->> lc("minus"),                            not_more_char,  !,  add_col(5).              
 command('natural')                          -->> lc("natural"),                          not_more_char,  !,  add_col(7).           
 command('no')                               -->> lc("no"),                               not_more_char,  !,  add_col(2).       
 command('null')                             -->> lc("null"),                             not_more_char,  !,  add_col(4).  
@@ -565,7 +568,8 @@ is_more_char -->>
     [C],
     { is_letter_code(C);
       is_underscore_code(C);
-      is_number_code(C) }.
+      is_number_code(C);
+      is_dollar_sign_code(C) }.
 
 number(NumberToken) -->>
   positive_number(NumberToken).

@@ -64,11 +64,12 @@ set_error(Class, Error, Position) :-
           assert_error(Class, Error, Position)
        ;  true)
    ;  assert_error(Class, Error, Position)).
+  /*
 set_error(Class, Error) :-
   % Runtime error. There can be only one runtime error
   %get_runline(Comp, Line-Statement),
   assert_error(Class, Error, pos(1, 1)).
-
+*/
 % set_error(+Class, +Error)
 % Set a runtime error 
 set_error(Class, Error) :-
@@ -134,4 +135,6 @@ display_error_location(Line, Location, ColumnOrStmt) :-
 
 set_error_with_parameter(Class, ErrorStr, Parameter, Position) :-
   format(atom(Error), ErrorStr, Parameter),
-  set_error(Class, Error, Position).
+  set_error(Class, Error, Position),
+  !, 
+  fail.

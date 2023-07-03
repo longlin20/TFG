@@ -1,4 +1,4 @@
-:- module(parser,
+:- module(parser_copy,
           [ lex_parse/2,
             lex_parse/1,
             parse/2]).
@@ -97,7 +97,7 @@ filter_tokens([H|Filtered], Rest) -->
 pretty_print(Term) :-
   copy_term(Term, Copy),
   numbervars(Copy, 0, _, [functor_name('$VAR'), singletons(true)]),
-  format("~p\n\n", [Copy]).
+  format("~p\n", [Copy]).
 
 % statements(-STs1/STs)//
 % statements ::=
@@ -605,6 +605,7 @@ b_DQL([STs1|STs]/STs) -->
   punct(')')                          # 'closing parenthesis '')'''.
 
 % UNION
+
 ub_DQL([(union(D,R1,R2),_AS)|STs]/STs) -->
   b_DQL([R1|STs]/STs),
   union_stmt(D),
@@ -612,6 +613,7 @@ ub_DQL([(union(D,R1,R2),_AS)|STs]/STs) -->
   dqlStmt([R2|STs]/STs)               # 'select statement',
   closing_parentheses_star(N),
   !.
+
 ub_DQL([(union(D,R1,R2),_AS)|STs]/STs) -->
   select_DQL([R1|STs]/STs),
   union_stmt(D),
@@ -619,39 +621,45 @@ ub_DQL([(union(D,R1,R2),_AS)|STs]/STs) -->
   dqlStmt([R2|STs]/STs)               # 'select statement',
   closing_parentheses_star(N),
   !.
+
+/*
 % EXCEPT
 ub_DQL([(except(D,R1,R2),_AS)|STs]/STs) -->
-  b_DQL([R1|STs]/STs),
+  b_DQL(R1),
   except_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'select statement',
   closing_parentheses_star(N),
   !.
 ub_DQL([(except(D,R1,R2),_AS)|STs]/STs) -->
-  select_DQL([R1|STs]/STs),
+  select_DQL(R1),
   except_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'select statement',
-  closing_parentheses_star(N),
+  closing_parentheses_star(N), 
   !.
+
+
 % INTERSECT
-ub_DQL([(intersect(D,R1,R2),_AS)|STs]/STs) -->
-  b_DQL([R1|STs]/STs),
+ub_DQL([(intersect(D,[R1|STs],R2),_AS)|STs]/STs) -->
+  b_DQL(R1),
   intersect_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'select statement',
   closing_parentheses_star(N),
   !.
-ub_DQL([(intersect(D,R1,R2),_AS)|STs]/STs) -->
-  select_DQL([R1|STs]/STs),
+ub_DQL([(intersect(D,[R1|STs],R2),_AS)|STs]/STs) -->
+  select_DQL(R1),
   intersect_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'select statement',
   closing_parentheses_star(N), 
   !.
+*/
 % SELECT
 ub_DQL([STs1|STs]/STs) --> 
-  select_DQL([STs1|STs]/STs).
+  select_DQL([STs1|STs]/STs),
+  !.
 
 union_stmt(DistinctAll) -->
   [cmd(union):_],
@@ -678,36 +686,36 @@ set_difference_kw -->
   [cmd(minus):_].
 
 % SELECT 
-select_DQL([(select(DistinctAll,TopN,Offset,ProjList,TargetList,
-               from(Relations),
+select_DQL([(select(/*DistinctAll,TopN,Offset,*/ProjList,/*TargetList,*/
+               from(Relations)/*,
                where(WhereCondition),
                group_by(GroupList),
                having(HavingCondition), 
-               order_by(OrderArgs,OrderSpecs)),_AS)|STs]/STs) -->
-  select_stmt(DistinctAll,TopN),
+               order_by(OrderArgs,OrderSpecs)*/),_AS)|STs]/STs) -->
+  select_stmt(_,_),
   projection_list(ProjList),
-  target_clause(TargetList),
+  %target_clause(TargetList),
   cmd(from)                           # 'FROM clause',
   opening_parentheses_star(N),
   {!}, % 23-01-2021
   relations(Relations),
-  where_clause_with_cut(WhereCondition),
+  /*where_clause_with_cut(WhereCondition),
   group_by_clause(GroupList),
   having_clause(HavingCondition),
   order_by_clause(OrderArgs,OrderSpecs),
   optional_offset_limit(Offset),
-  optional_fetch_first(TopN),
+  optional_fetch_first(TopN),*/
   closing_parentheses_star(N),
-  {set_topN_default(TopN)},
+  %{set_topN_default(TopN)},
   !.
 
 % FROM-less SELECT
-select_DQL([(select(DistinctAll,TopN,no_offset,ProjList,TargetList,
+select_DQL((select(DistinctAll,TopN,no_offset,ProjList,TargetList,
                from([(dual,_Ren)]),
                where(true),
                group_by([]),
                having(true),
-               order_by([],[])),_AS)|STs]/STs) -->
+               order_by([],[])),_AS)) -->
   select_stmt(DistinctAll,TopN),
   projection_list(ProjList),
   {set_topN_default(TopN)},
@@ -818,8 +826,8 @@ remaining_relations([]) -->
   [].
 
 
-p_ren_relation(R) --> 
-  ren_relation(R).
+/*p_ren_relation(R) --> 
+  ren_relation(R).*/
 p_ren_relation(R) --> 
   relation(R).  
 
@@ -841,10 +849,10 @@ relation(R) -->
   ub_relation(R),
   closing_parentheses_star(N).
 
-ub_relation((R,_AS)) --> 
+/*ub_relation((R,_AS)) --> 
   division_relation(R).
 ub_relation((R,_AS)) --> 
-  join_relation(R).
+  join_relation(R).*/
 ub_relation(R) --> 
   non_join_relation(R).
 
@@ -1170,7 +1178,7 @@ update_assignment(expr(ColumnName,_,string),Expression) -->
 
 
 dql_or_constant_tuples(_A,R) -->
-  dqlStmt([R|STs]/STs).
+  dqlStmt(R).
 dql_or_constant_tuples(A,R) -->
   punct('(')                          # 'opening parenthesis''(''',
   sql_ground_tuple_list(A,Ts),
@@ -1480,6 +1488,7 @@ sql_date_constant(cte(date(Y,M,D),datetime(date))) -->
   optional_cmd(bc,BC),
   current_position(Position),
   value(str(C))                       # 'string',
+  !,
   { 
     string_chars(C, Chars),
     phrase(valid_date_format, Chars) -> true; 
@@ -1507,6 +1516,7 @@ sql_date_constant(cte(datetime(Y,M,D,H,Mi,S),datetime(datetime))) -->
   optional_cmd(bc,BC),
   current_position(Position),
   value(str(C))                       # 'string',
+  !,
   { 
     string_chars(C, Chars),
     phrase(valid_datetime_format, Chars) -> true; 
@@ -1568,6 +1578,7 @@ sql_condition(PP,To) -->
   r_sql_condition(PP,0,T/To).
 sql_condition(PP,To) -->
   [op(OP):_],
+  !,
   {sql_operator(P,FX,OP),
     prefix(P,FX,PR),
     P=<PP},
@@ -1577,6 +1588,7 @@ sql_condition(PP,To) -->
 
 r_sql_condition(PP,Pi,Ti/To) -->
   [op(OP):_],
+  !,
   {sql_operator(P,YFX,OP),
     infix(P,YFX,PL,PR),
     P=<PP,
@@ -1635,14 +1647,15 @@ cond_factor(false) -->
 cond_factor(is_null(R)) --> 
   sql_expression(R,_T), 
   cmd(is)                             # 'IS', 
-  cmd(null)                           # 'NULL or NOT NULL'.
+  cmd(null)                           # 'NULL'.
 cond_factor(not(is_null(R))) --> 
   sql_expression(R,_T),  
   cmd(is)                             # 'IS',
-  op(not)                             # 'NULL or NOT NULL', 
+  op(not)                             # 'NOT', 
   cmd(null)                           # 'NULL'.
 /*cond_factor(exists(R)) -->
   [cmd(exists):_],
+  !,
   opening_parentheses_star(N),
   dqlStmt([R|STs]/STs)         # 'valid SELECT statement',
   closing_parentheses_star(N).
@@ -1770,17 +1783,17 @@ tuple_op(RO) -->
 % SQL Expressions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
+/*
 sql_expressions([E|Es]) -->
   sql_expression(E,_)                 # 'an expression',
-  remaining_sql_expressions(Es).
-remaining_sql_expressions(Cs) -->
   punct(',')                          # 'comma',
   !,
-  sql_expressions(Cs).
-remaining_sql_expressions([]) -->
-  [].
-
+  sql_expressions(Es).
+sql_expressions([E]) -->
+  sql_expression(E,_)                 # 'an expression'.
+sql_expressions([]) -->
+  []. 
+*/
 
 sql_expression(E,T) -->
   {current_db(_,postgresql)},
@@ -1802,6 +1815,7 @@ sql_expression(PP,Lo,To) -->
   r_sql_expression(PP,0,L/Lo,T/To).
 sql_expression(PP,Lo,To) -->
   [op(OP):_],
+  !,
   {operator(P,FX,[T,Ta],_,OP),
     prefix(P,FX,PR),
     P=<PP},
@@ -1811,6 +1825,7 @@ sql_expression(PP,Lo,To) -->
   
 r_sql_expression(PP,Pi,Li/Lo,Ti/To) -->
   [op(OP):_],
+  !,
   {operator(P,YFX,[T,Ti,RT],_,OP),
     infix(P,YFX,PL,PR),
     P=<PP,
@@ -1860,6 +1875,7 @@ sql_factor(Aggr,T) -->
   !.  % WARNING: This cut is only for improving parsing performance
 sql_factor(FAs,T) --> 
   [fn(SF):_],
+  !,
   {function(SF,F,_,_,[T|Ts],Arity),
     Arity>0},
   [punct('('):_],
@@ -1969,6 +1985,7 @@ sql_special_aggregate_function(max(C),_) -->
 % Aggr(DISTINCT Column)
 sql_special_aggregate_function(AF,T) -->
   [fn(F):_],
+  !,
   {my_aggregate_function(_,PF,T,1),
    atom_concat(F,'_distinct',PF)},
   punct('(')                          # 'opening parenthesis ''(''',
