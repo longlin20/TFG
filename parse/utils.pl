@@ -5,7 +5,8 @@
           [ my_map_1/2,
             my_nf_setof/3,
             my_remove_duplicates/2,
-            my_list_to_list_of_lists/2]).
+            my_list_to_list_of_lists/2,
+            my_zipWith/4]).
 
 :- use_module(parser).
 
@@ -54,3 +55,12 @@ my_delete([Head|Tail], Element, [Head|Rest]) :-
 my_list_to_list_of_lists([],[]).
 my_list_to_list_of_lists([A|As],[[A]|Bs]) :-
   my_list_to_list_of_lists(As,Bs).
+
+
+% zipWith
+% +Operator/Predicate +List(LeftOp) +List(RightOp) +List(Operator(LeftOp,RightOp))
+my_zipWith(_Z,[],_Bs,[]).
+my_zipWith(_Z,[_A|_As],[],[]).
+my_zipWith(Z,[A|As],[B|Bs],[P|Ps]) :-
+  P=..[Z,A,B],
+  my_zipWith(Z,As,Bs,Ps).

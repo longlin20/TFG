@@ -73,18 +73,30 @@ success :-
   format('**   SUCCESS! All tests passed   **~n', []),
   format('***********************************~n', []).
 
-
 % test(+Module, +GoalName/2, +Input, +Expected) :-
 test(Module, GoalName, Input, Expected) :-
   Goal =.. [GoalName, Input, Computed],
   Module:Goal,
   !,
-  writeln(Computed),
   (Computed =@= Expected % Structurally equal
-   -> true
-   ;  format('TEST ERROR:\n  Expected: ~q\n  Computed: ~q\n', [Expected, Computed]),
+   -> writeln(Computed)
+   ;  (format('TEST ERROR:\n'), print_lists(Expected, Computed)),
       !, fail).
 test(_Module, _GoalName, _Input, failure(Error)) :-
   Error,
   writeln(Error).
 
+pretty_print_pair(Expected, Computed) :-
+  format('Expected: ', []),
+  pretty_print(Expected),
+  format('\nComputed: ', []),
+  pretty_print(Computed),
+  format('\n', []).
+
+print_lists(ExpectedList, ComputedList) :-
+  maplist(pretty_print_pair, ExpectedList, ComputedList).
+
+pretty_print(Term) :-
+  copy_term_nat(Term, Copy),
+  numbervars(Copy, 0, _, [functor_name('$VAR'), singletons(true)]),
+  format("~p\n", [Copy]).

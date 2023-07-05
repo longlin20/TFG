@@ -1,71 +1,66 @@
 /*% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% % DML (Data Manipulation Language) statements
+% % DQL (Data Query Language) statements
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-INSERT INTO STATEMENTS
+SELECT(II) STATEMENTS
 
-% DMLstmt ::=
-%   INSERT INTO TableName[(Att {,Att})] VALUES (ExprDef {,ExprDef}) {, (ExprDef {,ExprDef})}
+% DQLstmt ::=
+%   (DQLstmt) 
 %   |
-%   INSERT INTO TableName DEFAULT VALUES
-%   |
-%   INSERT INTO TableName[(Att {,Att})] DQLstmt*/
+%   UBSQL
 
-/*insert into `t1` select
-insert into t1 select
-insert into [t1] select
-insert into "t1" select*/
-insert into t1 default values
-insert into t3 default values
-insert into t2 values(1, '2')
-insert into t2 values (1,'Ventas'), (2,'Contabilidad')
-insert into t3 values ('1','n1','d1'),('2','n2','d2');
-INSERT INTO t1 VALUES (DATE '2011-06-1');
-INSERT INTO t1 VALUES (default), (NULL);
-INSERT INTO t3 VALUES (TIME '12:00:01', 2.5, 1), (DATE '2012-01-01', DEFAULT, NULL);
-INSERT INTO  t2 VALUES (TIME '12:00:01', DATE '2000-06-01')
-INSERT INTO  T1 VALUES (TIMESTAMP BC '2023-06-01 13:45:30'), (DATETIME '2023-06-17 17:35:45')
-insert into t1(a1) values (1)
-insert into t3(a3,b3,c3) values (1,2,'a')
-insert into t2(a3,b3,c3) values (1,2,'a')
+% UBSQL ::= 
+%   SELECTstmt 
+
+% SELECTstmt ::=
+%   SELECT [TOP IntegerExpression] [[ALL|DISTINCT]] SelectExpressionList
+%     [INTO SelectTargetList]
+%   [FROM Rels
+%    [WHERE WhereCondition]
+%    [GROUP BY Atts]
+%    [HAVING HavingCondition]
+%    [ORDER BY OrderDescription]
+%    [OFFSET IntegerExpression [LIMIT IntegerExpression]]
+%    [FETCH FIRST IntegerExpression ROWS ONLY]]*/
 
 
-/*ERROR*/
+select * from t1 division t2
+select * from t1 join t2, t3 inner join t4
+select * from t full join s on t.a=s.a
+select * from t1 join t2 using (c)
+SELECT * FROM s LEFT JOIN (q RIGHT JOIN sp ON q.sno=sp.sno) ON s.sno=q.sno
+select * from t1 natural left outer join t
+select * from t natural right join s
+select * from t1 table1 right join t2 as table2
 
--- table name
---insert into 222 values (1, '1')
 
--- Semantic: Unmatching number of values => 2 (must be 3)
---insert into t3 values (1, '1')
+select 1;
+select 1 a;
+select 1 a, a+1;
+select a+2,1 a, a+1;
+select a+2,1+1 a, a+1;
 
--- Semantic: Unmatching number of values => 3 (must be 2)
---insert into t3(a2,a3) values (1,2,'a')
 
--- Semantic: Invalid DATE String format => must be 'Int-Int-Int'
---INSERT INTO  t1 VALUES (DATE '2000-a-01');
+select * from t join s join u;
+select * from (t join s join u);
+select * from t join (s join u);
+select * from t join s join u;
 
---
---insert into t2(a3,b3,a3) values (1,2,'a')
+--select * from (t join s) join u;
 
---
---insert into t1 values ('V1')    ('V2');
+/*select * from (t natural full join s) left join u on t.a=u.a;
+select * from (t natural full join s) left join u on s.a=u.a;
+select * from (t natural full join s) left join u on 10*s.c=u.b;
+select * from (t natural full join s) left join u on 10*s.c=u.b or 100*t.b=u.b;
+select * from (t natural full join s) natural full join u;*/
 
--- closing parenthesis or comma 
---insert into t1 values(1 '2')
---insert into t3 values(1 '2')
+/* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   SELECT STATEMENTS 2 ERROR , column
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
--- comma 
---insert into t2(a3 c) values (1,'a')
+-- a valid relation , 15
+--select * from 1 right join t2
 
--- string
---INSERT INTO  t1 VALUES (DATE 2000);
-
--- VALUES 
---insert into t1 default v
-
--- VALUES, select statement, or DEFAULT VALUES
---default 
---insert into t1 defa values
-
--- closing bracket
---insert into [t1 select
+-- valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT) , 20/18
+--select * from t1 t s join t2
+--select * from t1 1 join t2

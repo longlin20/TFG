@@ -241,7 +241,7 @@ token(_Error) -->>
   !, fail.
 
 sql_comment_start -->> % Check for SQL comment start ('--')
- "--".
+ "--", !, add_col(2).
 
 comment(Comment) -->>
   comment_codes(Codes0),
@@ -262,7 +262,7 @@ comment_codes([]) -->> % No more codes are left to read
   [],
   !.
 
-multi_line_comment_start -->> "/*".
+multi_line_comment_start -->> "/*", !, add_col(2).
 
 multi_line_comment_content(Comment, Nesting) -->>
   multi_line_comment_codes(Codes, Nesting),
@@ -272,19 +272,20 @@ multi_line_comment_codes([], 0) -->>
 !.
 
 multi_line_comment_codes([Code|Codes], Nesting) -->>
+  set_error_Syntax('unclosed multiline comment'),
   [Code],
   ( {Code == 10} -> inc_line ; inc_col ),
   !,
   ( multi_line_comment_start -> 
-      {NewNesting is Nesting + 1},
-      multi_line_comment_codes(Codes, NewNesting)
+    {NewNesting is Nesting + 1},
+    multi_line_comment_codes(Codes, NewNesting)
   ; multi_line_comment_end -> 
       {NewNesting is Nesting - 1},
       multi_line_comment_codes(Codes, NewNesting)
   ; multi_line_comment_codes(Codes, Nesting)
   ).
 
-multi_line_comment_end -->> "*/".
+multi_line_comment_end -->> "*/" , !, add_col(2).
 
 
 delimiter(op(Delimiter)) -->>
@@ -850,6 +851,9 @@ set_error(Error) -->>
   get_pos(Position):position,
   {set_error('Lexical', Error, Position)}.
 
+set_error_Syntax(Error) -->>
+  get_pos(Position):position,
+  {set_error('Syntax', Error, Position)}.
 
 non_visible_code(9).   % Tabulator
 non_visible_code(13).  % carriage return
@@ -906,13 +910,13 @@ test012 :-
   test(lexer, lex, 'test/test005.sql', [cmd(varchar2):pos(1,1),id_lc_start(a_2):pos(1,10),punct(nl):pos(1,13),id_lc_start(algo_):pos(2,1),punct(nl):pos(2,6),id('$1'):pos(3,1),id('$t1t'):pos(3,4),str('$T1.t'):pos(3,9),quoted_id('$T.1'):pos(3,17),punct(nl):pos(3,23),id('$v$'):pos(4,1),str('$V$'):pos(4,5)]).
 
 test013 :-
-  test(lexer, lex, 'test/test006.sql', [cmd(select):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,67),cmd(from):pos(2,1),id_lc_start(tabla):pos(2,6)]).
+  test(lexer, lex, 'test/test006.sql', [cmd(select):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,69),cmd(from):pos(2,1),id_lc_start(tabla):pos(2,6)]).
 
 test014 :-
   test(lexer, lex, 'test/test007.sql', [fn(times):pos(1,1),cmd(timestamp):pos(1,7),cmd(no):pos(1,17),op(not):pos(1,20),fn(sign):pos(1,24),id_lc_start(timesa):pos(1,29),id_lc_start(times1):pos(1,36),punct(nl):pos(1,42),fn(substr):pos(2,1),id_lc_start(substring):pos(2,8),punct(nl):pos(2,17)]).
 
 test015 :-
-  test(lexer, lex, 'test/test008.sql', [comment('\nEste es un comentario\nh\nde varias lneas\n'):pos(1,1),punct(nl):pos(5,1),int(1):pos(6,1)]).
+  test(lexer, lex, 'test/test008.sql', [comment('\nEste es un comentario\nh\nde varias lneas\n'):pos(1,1),punct(nl):pos(5,3),int(1):pos(6,1)]).
   
 test016 :-
   test(lexer, lex, 'test/test009.sql', [cmd(alter):pos(1,1),cmd(table):pos(1,7),id_lc_start(a):pos(1,13),cmd(add):pos(1,15),cmd(constraint):pos(1,20),cmd(primary):pos(1,31),cmd(key):pos(1,39),punct('('):pos(1,43),id_lc_start(a):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter):pos(3,1),cmd(table):pos(3,7),id_lc_start(b):pos(3,13),cmd(drop):pos(3,15),cmd(constraint):pos(3,20),op(not):pos(3,31),cmd(null):pos(3,35),id_lc_start(b):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter):pos(5,1),cmd(table):pos(5,7),id_lc_start(d):pos(5,13),cmd(add):pos(5,15),cmd(constraint):pos(5,20),cmd(check):pos(5,31),punct('('):pos(5,37),id_lc_start(a):pos(5,38),comparisonOp(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
@@ -952,5 +956,8 @@ test027 :-
 
 test028 :-
   test(lexer, lex, 'test/test013.sql',  [int(2):pos(1,1),punct(nl):pos(1,2),op(+):pos(2,1),int(2):pos(2,2),punct(nl):pos(2,3),op(-):pos(3,1),int(2):pos(3,2),punct(nl):pos(3,3),frac(2,2):pos(4,1),punct(nl):pos(4,4),op(+):pos(5,1),frac(2,2):pos(5,2),punct(nl):pos(5,5),op(-):pos(6,1),frac(2,2):pos(6,2),punct(nl):pos(6,5),float(2,0,2):pos(7,1),punct(nl):pos(7,4),float(2,0,-2):pos(8,1),punct(nl):pos(8,5),op(-):pos(9,1),float(2,0,2):pos(9,2),punct(nl):pos(9,5),op(-):pos(10,1),float(2,0,2):pos(10,2),punct(nl):pos(10,6),op(-):pos(11,1),float(2,0,-2):pos(11,2),punct(nl):pos(11,6),float(2,2,2):pos(12,1),punct(nl):pos(12,6),float(2,2,-2):pos(13,1),punct(nl):pos(13,7),op(+):pos(14,1),float(2,2,-2):pos(14,2),punct(nl):pos(14,8),op(-):pos(15,1),float(2,2,2):pos(15,2),punct(nl):pos(15,7),op(-):pos(16,1),float(2,2,-2):pos(16,2)]).
+
+test029 :-
+  test(lexer, lex, "delete from t1 /*", failure(error('Syntax', 'unclosed multiline comment', pos(1, 18)))).
 
 punctuation('comilla') -->> "'",  !, inc_col.

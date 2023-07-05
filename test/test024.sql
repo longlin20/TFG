@@ -1,28 +1,30 @@
-/*% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% % ISL (Information Schema Language) statements
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/*% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % TML (Transaction Management Language) statements
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% ISLstmt ::=
-%   SHOW TABLES
+% TMLstmt ::=
+%   COMMIT [WORK]
 %   |
-%   SHOW VIEWS
+%   ROLLBACK [WORK] [TO SAVEPOINT SavepointName]
 %   |
-%   SHOW DATABASES
-%   |
-%   DESCRIBE [TableName|ViewName]*/
+%   SAVEPOINT SavepointName*/
 
-show tables
+COMMIT
+COMMIT WORK
+ROLLBACK
+ROLLBACK WORK
+ROLLBACK WORK TO SAVEPOINT "sp1"
+ROLLBACK TO SAVEPOINT "sp1"
+SAVEPOINT "sp2"
 
-show views
+/* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   TML STATEMENTS ERROR , column
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
-SHOW DATABASES
+--  SAVEPOINT , 18/15
+--ROLLBACK WORK TO point "sp1"
+--ROLLBACK TO point "sp1"
 
-DESCRIBE t
-
-/*ERROR*/
-
--- table name
---DESCRIBE 2
-
--- TABLES, VIEWS or DATABASES
---show t
+-- double quotes id (savepoint name) , 28/23
+--ROLLBACK WORK TO SAVEPOINT sp1
+--ROLLBACK TO SAVEPOINT 'sp1'

@@ -31,7 +31,7 @@ create table emp(dnisupervisor string, check dnisupervisor in select dni from em
 create table t(a integer check (a>-1E-1))
 
 create or replace table t(a int, b int);
-create or replace table t(a int, b int, foreign key (a) references s)
+create or replace table t(a int, b int, foreign key a references s)
 create or replace table t(a int, b int, c int, d int, check (a,b) determined by (c,d))
 
 create table t like s
