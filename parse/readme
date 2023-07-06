@@ -1,0 +1,50 @@
+Cosas importantes
+
+El main program es el parser: 
+utilizando lex_parse('test/testXXX.sql') 
+o 
+parser:test para testear todos los 124 tests hasta este momento
+
+Hace primero el lexer y despues hace un filtro para eliminar todos los tokens que son salto de linea(nl) o comentarios(comment), finalmente el parser y muestra el arbol de sintaxis en la pantalla.
+
+la estructura del documento parse.pl:
+
+1) statements
+2) DDLstmt
+3) DQLstmt
+4) DMLstmt
+5) ISLstmt
+6) TMLstmt
+7) SQL Types
+8) SQL Constants
+9) SQL Condition
+10) SQL Condition Factor
+11) SQL Expressions
+12) SQL Expressions Factor
+13) Column and Table Constraint
+14) Column ColumnNameList tablename viewname colname relname
+15) Syntax check
+16) Auxilliary predicates
+17) Tests
+
+des_data.pl: los predicados relacionado a base de datos.
+current_db/1,
+current_db/2,
+my_table/3,
+my_attribute/5,
+my_view/9
+
+des.pl: los predicados de des.pl que he utilizado en parser.pl.
+
+error_.pl: manejo de errores.
+
+lexer.pl : cambios importantes respecto la ultima vez:
+eliminar y añadir funciones y comandos, incluir los id que empieza con $, y añadir id_lc_start que son los ids que empieza por minuscula para el predicado symbol(los Datalog constants).
+
+misc: current_position y list_diff.
+
+test.pl: manejo de los tests.
+
+utils.pl: aqui contiene predicados de des_common.pl y des_dl_debug.pl que necesitaba para parser.pl
+
+dudas.txt: las dudas y cosas por hacer.

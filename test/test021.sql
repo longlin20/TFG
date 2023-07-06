@@ -58,7 +58,7 @@ insert into c select a.a,b.b from a,b where a.a=b.b or b.b='a1';
 --insert into t(a) (1)
 --insert into t1 defa values
 
--- string , 30
+-- a valid constant , 25
 --INSERT INTO  t1 VALUES (DATE 2000);
 
 -- TIME String format must be 'Int(hour):Int(minute):Int(second)' , 29
@@ -78,9 +78,6 @@ insert into c select a.a,b.b from a,b where a.a=b.b or b.b='a1';
 
 -- Semantic, Column names must be different in [a3,b3,a3] , 15
 --insert into t2(a3,b3,a3) values (1,2,'a')
-
-
-
 
 /*
 -- closing bracket
