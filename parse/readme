@@ -3,11 +3,11 @@ Cosas importantes
 El main program es el parser: 
 utilizando lex_parse('test/testXXX.sql') 
 o 
-parser:test para testear todos los 124 tests hasta este momento.
+parser:test para testear todos los 124 tests hasta este momento
 
 Hace primero el lexer y despues hace un filtro para eliminar todos los tokens que son salto de linea(nl) o comentarios(comment), finalmente el parser y muestra el arbol de sintaxis en la pantalla.
 
-la estructura del documento parse.pl:
+La estructura del documento parse.pl:
 
 1) statements
 2) DDLstmt
