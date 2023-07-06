@@ -21,15 +21,14 @@ Al hacer debug creo sale el error porque en select_DQL
 consume el parentesis de apertura y en el predicado relations ya solo queda parentesis de cierre y por eso
 sale error, pero no estoy seguro. 
 --select * from (t join s) join u;
- 
+
+4) En estos casos sale error, creo que es poruqe no son de mismo tipo.
+--select date '2017-02-01' - 1
+--select cast((datetime '1-1-1 0:0:0' - 1) as string);
+
 5) He ignorado la mayoria de los Syntax check ya que depende de bastantes otros predicados:
 -syntax_check_redef
 -syntax_check_same_types
 
 6) Tampoco el predicado create_or_replace_view() dentro del HR-SQL CREATE VIEW syntax,
-tambien porque necesita muchos predicados que desconozco la funcionalidad.
-
-Lo que faltan son: 
-1) Algunos SQL Expressions Factor
-2) Cambiar algunos cmd(replace, float, left, right) en lexer ya que algunos de ellos puede ser cmd y tambien fn
-3) Los fn pueden ser tambien e y pi que son id o id_lc_start
+tambien porque necesita muchos  otros predicados que desconozco la funcionalidad.

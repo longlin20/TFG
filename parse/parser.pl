@@ -302,8 +302,8 @@ create_or_replace(create) -->
 
 create_or_replace(create_or_replace) -->
   [cmd(create):_],
-  op(or)                              # 'OR REPLACE, DATABASE',
-  cmd(replace)                        # 'REPLACE'.
+  [op(or):_],
+  ([cmd_fn(replace):_] -> {true} ; set_error('Syntax', 'REPLACE')).
 
 
 complete_constrained_typed_schema(Schema,Ctrs) -->
@@ -376,15 +376,15 @@ referential_action(cascade) -->
   [cmd(cascade):_].
 referential_action(set_null) -->
   [cmd(set):_],
-  cmd(null)                           # 'NULL'.
+  ([cmd(null):_] -> {true} ; set_error('Syntax', 'NULL')).
 referential_action(set_default) -->
   [cmd(set):_],
-  cmd(default)                        # 'DEFAULT'.
+  ([cmd(default):_] -> {true} ; set_error('Syntax', 'DEFAULT')).
 referential_action(restrict) -->
   [cmd(restrict):_].
 referential_action(no_action) -->
   [cmd(no):_],
-  cmd(action)                         # 'ACTION'.
+  ([cmd(action):_] -> {true} ; set_error('Syntax', 'ACTION')).
 
 check_constraint(fd(Ls,Rs)) -->
   column_tuple(Rs),
@@ -422,7 +422,7 @@ complete_untyped_schema(Schema) -->
   sql_user_identifier(Name),
   punct('(')                          # 'opening parenthesis ''(''',
   untyped_columns(Cs)                 # 'column sequence separated by commas',
-  punct(')')                          # 'closing parenthesis '')''',
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')),
   {Schema =.. [Name|Cs]}.
 
 optional_database_name(DBName) -->
@@ -489,12 +489,12 @@ optional_drop_clauses(RelType,Clauses) -->
   
 optional_drop_clauses(RelType,ClausesIn,ClausesOut) -->
   [cmd(if):_],
-  cmd(exists)                         # 'EXISTS',
+  ([cmd(exists):_] -> {true} ; set_error('Syntax', 'EXISTS')),
   optional_drop_clauses(RelType,[if_exists|ClausesIn],ClausesOut).
 optional_drop_clauses(table,ClausesIn,ClausesOut) -->
   % This option only applies to tables
   [cmd(cascade):_],
-  cmd(constraints)                    # 'CONSTRAINTS',
+  [cmd(constraints):_],
   optional_drop_clauses(table,[cascade_constraints|ClausesIn],ClausesOut). % Default option. Maybe a later version will change this default
 optional_drop_clauses(RelType,ClausesIn,ClausesOut) -->
   [cmd(cascade):_],
@@ -595,7 +595,7 @@ dqlStmt([STs1|STs]/STs) -->
 b_DQL([STs1|STs]/STs) -->
   [punct('('):_],
   dqlStmt([STs1|STs]/STs),             /*# 'valid SQL DQL statement'*/
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')).
 % ASSUME
 ub_DQL([(with(SQLst,SQLsts),_AS)|STs]/STs) -->
   [cmd(assume):_],
@@ -803,7 +803,7 @@ top_argument(expr(N,_AS,number(int))) -->
 top_argument(N) -->
   [punct('('):_],
   sql_proj_expression(N,_),
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')).
 
 set_topN_default(top(all)) :-
   !.
@@ -839,7 +839,7 @@ ren_argument(Arg) -->
 sql_argument((R,(*)),'$') -->  % Cannot be renamed
   relname(R)                          # 'relation name',
   punct('.')                          # 'dot ''.''',
-  op('*')                             # 'a star ''*'''.
+  ([op('*'):_] -> {true} ; set_error('Syntax', 'a star ''*''')).
 sql_argument(E,AS) -->
   sql_proj_expression(E,AS).
 
@@ -998,9 +998,9 @@ join_operator(Outer_join) -->
   [cmd(join):_].
 
 outer_kind(left_join) -->
-  [cmd(left):_].
+  [cmd_fn(left):_].
 outer_kind(right_join) -->
-  [cmd(right):_].
+  [cmd_fn(right):_].
 outer_kind(full_join) -->
   [cmd(full):_].
 
@@ -1090,13 +1090,13 @@ optional_order(a) -->
   [].
 
 order(d) -->
-  cmd(descending)                     # 'DESCENDING'.
+  [cmd(descending):_].
 order(d) -->
-  cmd(desc)                           # 'DESC'.
+  [cmd(desc):_].
 order(a) -->
-  cmd(ascending)                      # 'ASCENDING'.
+  [cmd(ascending):_].
 order(a) -->
-  cmd(asc)                            # 'ASC'.
+  [cmd(asc):_].
 
 
 optional_offset_limit(offset(Offset,Limit)) -->
@@ -1124,7 +1124,7 @@ optional_fetch_first(top(N)) -->
   cmd(first)                          # 'FIRST',
   sql_proj_expression(N1,_)           # 'an integer expression',
   cmd(rows)                           # 'ROWS',
-  cmd(only)                           # 'ONLY',
+  ([cmd(only):_] -> {true} ; set_error('Syntax', 'ONLY')),
   {nonvar(N) ->
     set_error_with_parameter('Semantic', 'Only one TOP/LIMIT/FETCH specification is allowed' , [], pos(void,void));
     %my_raise_exception(generic,syntax([]),[])
@@ -1202,7 +1202,7 @@ dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
 %insert_values_sql(Arity, Values)
 insert_values_sql(L,[Vs]) -->
   [cmd(default):_],
-  cmd(values)                         # 'VALUES',
+  ([cmd(values):_] -> {true} ; set_error('Syntax', 'VALUES')),
   {!,
   length(Vs,L),
   my_map_1('='(default),Vs)}.
@@ -1275,7 +1275,7 @@ sql_ground_tuple(L,Cs) -->
   current_position(Position),
   punct('(')                          # 'opening parenthesis ''(''',
   (sql_expressions(Cs); sql_constants(Cs)),
-  punct(')')                          # 'comma or closing parenthesis '')''',
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')),
   !,
   {length(Cs,TL),
     (L=TL -> true ;
@@ -1304,17 +1304,17 @@ where_clause(true) -->
 
 islStmt([show_tables|STs]/STs) -->
   [cmd(show):_],
-  cmd(tables)                         # 'TABLES, VIEWS or DATABASES',
+  ([cmd(tables):_] -> {true} ; set_error('Syntax', 'TABLES, VIEWS or DATABASES')),
   !. 
 
 islStmt([show_views|STs]/STs) -->
   [cmd(show):_],
-  cmd(views)                          # 'TABLES, VIEWS or DATABASES',
+  ([cmd(views):_] -> {true} ; set_error('Syntax', 'TABLES, VIEWS or DATABASES')),
   !. 
 
 islStmt([show_databases|STs]/STs) -->
   [cmd(show):_],
-  cmd(databases)                      # 'TABLES, VIEWS or DATABASES',
+  ([cmd(databases):_] -> {true} ; set_error('Syntax', 'TABLES, VIEWS or DATABASES')),
   !. 
 
 islStmt([describe(Name)|STs]/STs) -->
@@ -1376,7 +1376,7 @@ sql_type(string(char(N))) -->
   [punct('('):_],
   !,
   positive_integer(N)                 # 'a positive integer',
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
 % char  
 sql_type(string(char(1))) -->
   sql_character_type_id.
@@ -1386,14 +1386,14 @@ sql_type(string(varchar(N))) -->
   [punct('('):_],
   !,
   positive_integer(N)                 # 'a positive integer',
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
 
 sql_type(string(varchar)) -->
-  cmd(varchar)                        # 'VARCHAR'. 
+  [cmd(varchar):_]. 
 sql_type(string(varchar)) -->
-  cmd(string)                         # 'STRING'.
+  [cmd(string):_].
 sql_type(string(varchar)) -->
-  cmd(text)                           # 'TEXT'. 
+  [cmd(text):_]. 
 
 % integer
 sql_type(number(integer)) -->
@@ -1404,10 +1404,10 @@ sql_type(number(integer)) -->
   optional_integer_range(_).
 % real and float
 sql_type(number(float)) -->
-  [cmd(float):_], 
+  [cmd_fn(float):_], 
   punct('(')                          # 'opening parenthesis ''(''',
   positive_integer(_Int)              # 'a positive integer',
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
 sql_type(number(float)) -->
   sql_float_type_id.
 sql_type(number(float)) -->
@@ -1416,16 +1416,16 @@ sql_type(number(float)) -->
   positive_integer(_Int)              # 'a positive integer',
   punct(',')                          # 'comma',
   positive_integer(_Frac)             # 'a positive integer',
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
 
 sql_type(datetime(datetime)) -->
-  cmd(datetime)                       # 'DATETIME'.
+  [cmd(datetime):_].
 sql_type(datetime(datetime)) -->
-  cmd(timestamp)                      # 'TIMESTAMP'.
+  [cmd(timestamp):_].
 sql_type(datetime(date)) -->
-  cmd(date)                           # 'DATE'.
+  [cmd(date):_].
 sql_type(datetime(time)) -->
-  cmd(time)                           # 'TIME'.
+  [cmd(time):_].
 
 sql_type(_) -->
   set_error('Syntax', 'valid type').
@@ -1433,7 +1433,7 @@ sql_type(_) -->
 sql_float_type_id -->
   [cmd(real):_].
 sql_float_type_id -->
-  [cmd(float):_].
+  [cmd_fn(float):_].
   
 sql_varchar_type_id -->
   [cmd(varchar2):_].
@@ -1465,7 +1465,7 @@ optional_integer_range(R) -->
   [punct('('):_],
   !,
   positive_integer(R)                 # 'a positive integer',
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
 optional_integer_range(_R) -->
   [].
 
@@ -1633,7 +1633,7 @@ b_sql_condition(SQLst) -->
   [punct('('):_],
   !,
   sql_condition(SQLst),
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1673,18 +1673,17 @@ cond_factor(false) -->
 cond_factor(is_null(R)) --> 
   sql_expression(R,_T), 
   cmd(is)                             # 'IS', 
-  cmd(null)                           # 'NULL or NOT NULL'.
+  ([cmd(null):_] -> {true} ; set_error('Syntax', 'NULL or NOT NULL')). 
 cond_factor(not(is_null(R))) --> 
   sql_expression(R,_T),  
   cmd(is)                             # 'IS',
-  op(not)                             # 'NULL or NOT NULL', 
-  cmd(null)                           # 'NULL'.
+  op(not)                             # 'NULL or NOT NULL',
+  ([cmd(null):_] -> {true} ; set_error('Syntax', 'NULL')). 
 cond_factor(exists(R)) -->
   [cmd(exists):_],
   opening_parentheses_star(N),
   dqlStmt([R|STs]/STs)                # 'valid SELECT statement',
   closing_parentheses_star(N).
-
 cond_factor(and('<='(L,C),'<='(C,R))) --> 
   sql_expression(C,_CT),
   cmd(between)                        # 'BETWEEN',
@@ -1773,7 +1772,7 @@ sql_rel_cond_factor(Op,L,R,CF) :-
 column_or_constant_tuple(Cs,A) --> 
   [punct('('):_],
   sql_proj_expression_sequence(Cs),
-  punct(')')                          # 'closing parenthesis'')''',
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')),
   {length(Cs,A)}.
 column_or_constant_tuple([C],1) --> 
   sql_proj_expression(C,_AS).
@@ -1797,11 +1796,11 @@ relop(RO) -->
 
 set_op(SO) -->
   tuple_op(TO),
-  cmd(all)                            # 'all',
+  cmd(all)                            # 'ALL or ANY',
   {atom_concat(TO,'_all',SO)}.
 set_op(SO) -->
   tuple_op(TO),
-  cmd(any)                            # 'any',
+  cmd(any)                            # 'ALL or ANY',
   {atom_concat(TO,'_any',SO)}.
   
 tuple_op(RO) --> 
@@ -1916,7 +1915,7 @@ operator(P,A,Ts,SOP,OP) :-
 sql_factor(E,T) -->
   [punct('('):_],
   sql_expression(E,T),
-  punct(')')                          # 'closing parenthesis'')''',
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')),
   {!}. % WARNING: This whole clause is only for improving parsing performance
 sql_factor(E,_) --> % :::WARNING: Add type info
   dqlStmt([E|STs]/STs),
@@ -1925,12 +1924,12 @@ sql_factor(Aggr,T) -->
   sql_special_aggregate_function(Aggr,T),
   !.  % WARNING: This cut is only for improving parsing performance
 sql_factor(FAs,T) --> 
-  [fn(SF):_],
+  fn_identifier(SF),
   {function(SF,F,_,_,[T|Ts],Arity),
     Arity>0},
   [punct('('):_],
   sql_function_arguments(Arity,As,Ts),
-  punct(')')                          # 'closing parenthesis '')''',
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')),
   { FAs=..[F|As]}.
 sql_factor(Function,number(_)) -->
   [cmd(extract):_],
@@ -1972,21 +1971,21 @@ sql_factor(iif(Cond,Expr1,Expr2),_Type) -->
   punct(',')                          # 'comma',
   sql_expression(Expr2,_T2)           # 'valid expression', 
   ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
-/*sql_factor(case(CondValList,Default),Type) -->
+sql_factor(case(CondValList,Default),Type) -->
   [fn(case):_],
   sql_case2_when_thens(CondValList),
   sql_case_else_end(Default,Type).
 sql_factor(case(Expr,ExprValList,Default),Type) -->
   [fn(case):_],
-  sql_expression(Expr,_T)             # 'an expression', 
+  sql_expression(Expr,_T)             # 'an expression or WHEN', 
   sql_case3_when_thens(ExprValList),
-  sql_case_else_end(Default,Type).*/
+  sql_case_else_end(Default,Type).
 sql_factor(cte(C,T),T) -->
   sql_constant(cte(C,T)).
 sql_factor(C,_) -->
   column(C).
 sql_factor(F,T) --> 
-  [fn(SF):_],
+  fn_identifier(SF),
   {function(SF,F,_,Type,[T],0),
     Type\==aggregate % 0-arity aggregate functions from Datalog are not allowed in SQL
     },
@@ -1994,6 +1993,13 @@ sql_factor(F,T) -->
 
 %sql_factor(_,_) -->
 %  set_error('Syntax', 'valid SQL factor').
+fn_identifier(SF) -->
+  [fn(SF):_];
+  [cmd_fn(SF):_];
+  [id(e):_], {SF = e};
+  [id_lc_start(e):_], {SF = e};
+  [id(pi):_], {SF = pi};
+  [id_lc_start(pi):_], {SF = pi}.
 
 sql_function_arguments(1,[E],[T]) -->
   {dif(T,type(_))},
@@ -2039,7 +2045,7 @@ sql_special_aggregate_function(AF,T) -->
   punct('(')                          # 'opening parenthesis ''(''',
   cmd(distinct)                       # 'DISTINCT',
   column(C),
-  punct(')')                          # 'closing parenthesis '')''',
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')),
   {AF=..[PF,C]}.
 
 extract_field(year) -->
@@ -2062,6 +2068,49 @@ sql_expr_sequence([Expr1,Expr2|FactorSeq]) -->
 sql_expr_sequence([Expr]) -->
   sql_expression(Expr,_).
 
+sql_case2_when_thens([CondVal|CondValList]) -->
+  sql_case2_when_then(CondVal),
+  sql_case2_when_then_star(CondValList).
+
+sql_case2_when_then_star([CondVal|CondValList]) -->
+  sql_case2_when_then(CondVal),
+  sql_case2_when_then_star(CondValList).
+sql_case2_when_then_star([]) -->
+  [].
+
+sql_case2_when_then((Cond,Expr)) -->
+  [cmd(when):_],
+  sql_condition(Cond)                 # 'a condition',
+  cmd(then)                           # 'THEN',
+  sql_expression(Expr,_T)             # 'an expression'.  
+
+sql_case_else_end(Default,Type) -->
+  sql_case_else(Default,Type), 
+  ([cmd(end):_] -> {true} ; set_error('Syntax', 'END')).
+
+sql_case_else(Default,Type) -->
+  [cmd(else):_],
+  sql_expression(Default,Type).
+sql_case_else('$NULL'(N),_Type) -->
+  {get_null_id(N)}. % :::WARNING: Needed?
+  [].
+
+sql_case3_when_thens([ValVal|ValValList]) -->
+  sql_case3_when_then(ValVal),
+  sql_case3_when_then_star(ValValList).
+
+sql_case3_when_then_star([ValVal|ValValList]) -->
+  sql_case3_when_then(ValVal),
+  sql_case3_when_then_star(ValValList).
+sql_case3_when_then_star([]) -->
+  [].
+
+sql_case3_when_then((Expr1,Expr2)) -->
+  [cmd(when):_],
+  sql_expression(Expr1,_T1)           # 'an expression', 
+  cmd(then)                           # 'THEN',
+  sql_expression(Expr2,_T2)           # 'an expression'.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Column and Table Constraint
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2069,14 +2118,14 @@ sql_expr_sequence([Expr]) -->
 % column constraint
 column_constraint(C,not_nullables([C])) -->
   [op(not):_],
-  cmd(null)                           # 'NULL',
+  ([cmd(null):_] -> {true} ; set_error('Syntax', 'NULL')),
   !. 
 column_constraint(_C,true) -->
   [cmd(null):_],
   !.
 column_constraint(C,primary_key([C])) -->
   [cmd(primary):_],
-  cmd(key)                            # 'KEY',
+  ([cmd(key):_] -> {true} ; set_error('Syntax', 'KEY')),
   !.
 column_constraint(C,candidate_key([C])) -->
   [cmd(unique):_],
@@ -2098,7 +2147,7 @@ column_constraint(_C,CheckCtr) -->
   !.
 column_constraint(C,candidate_key([C])) -->
   [cmd(candidate):_],
-  cmd(key)                            # 'KEY',
+  ([cmd(key):_] -> {true} ; set_error('Syntax', 'KEY')),
   !.
 column_constraint(C,fd([Att],[C])) -->
   [cmd(determined):_],
@@ -2441,6 +2490,7 @@ terminal(id(_)).
 terminal(quoted_id(_)).
 terminal(id_lc_start(_)).
 terminal(cmd(_)).
+terminal(cmd_fn(_)).
 terminal(comparisonOp(_)).
 terminal(op(_)).
 terminal(fn(_)).
@@ -2469,7 +2519,10 @@ test0XX :-
 test(parser, lex_parse, "STATEMENT",
   failure(error('Syntax', 'ERROR', pos(1, 1)))).*/
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %ISLstmt
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test001 :-
   test(parser, lex_parse, 'test/test023.sql', 
   [show_tables,
@@ -2477,7 +2530,10 @@ test001 :-
   show_databases,
   describe(t)]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %ISLstmt error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test002 :-
   test(parser, lex_parse, "DESCRIBE 2",
     failure(error('Syntax', 'table name', pos(1, 10)))).
@@ -2486,7 +2542,10 @@ test003 :-
   test(parser, lex_parse, "show t",
     failure(error('Syntax', 'TABLES, VIEWS or DATABASES', pos(1, 6)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %TMLstmt
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test004 :-
   test(parser, lex_parse, 'test/test024.sql', 
     [commit,
@@ -2497,7 +2556,10 @@ test004 :-
     rollback([sp1]),
     savepoint(['sp2.ddb'])]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %TMLstmt error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test005 :-
   test(parser, lex_parse, "ROLLBACK WORK TO point ""sp1""",
     failure(error('Syntax', 'SAVEPOINT', pos(1, 18)))).
@@ -2514,7 +2576,10 @@ test008 :-
   test(parser, lex_parse, "ROLLBACK TO SAVEPOINT 'sp1'",
     failure(error('Syntax', 'double quotes id (savepoint name)', pos(1, 23)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DDLstmt CREATE, CREATE OR REPLACE
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test009 :-
   test(parser, lex_parse, 'test/test014.sql',
     [create_table(t(a:number(integer)),[true]),
@@ -2541,7 +2606,10 @@ test009 :-
     create_view(sql,(select(all,top(all),no_offset,*,[],from([(left_join((a,_),(b,_),attr(_,x,_)=attr(_,y,_)),_)]),where(attr(_,x,_)>cte(int(1),number(int))),group_by([]),having(true),order_by([],[])),_),v(x:_,y:_)),
     create_database(x)]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DDLstmt CREATE, CREATE OR REPLACE error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test010 :-
   test(parser, lex_parse, "create or table t(a int)",
     failure(error('Syntax', 'REPLACE', pos(1, 11)))).
@@ -2670,7 +2738,10 @@ test041 :-
   test(parser, lex_parse, "create view v() as select * from a",
     failure(error('Syntax', 'column sequence separated by commas', pos(1, 15)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DDLstmt ALTER, RENAME
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test042 :-
   test(parser, lex_parse, 'test/test015.sql', 
     [alter_table(t1,add,column(a:number(integer),[true])),
@@ -2691,7 +2762,10 @@ test042 :-
     rename_table(t,s),
     rename_view(v,s)]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DDLstmt ALTER, RENAME error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test043 :-
   test(parser, lex_parse, "alter t1 add constraint primary key(a)",
     failure(error('Syntax', 'TABLE', pos(1, 7)))).
@@ -2764,7 +2838,10 @@ test060 :-
   test(parser, lex_parse, "alter table t1 alter a1 set data type number()",
     failure(error('Syntax', 'a positive integer', pos(1, 46)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DDLstmt DROP and CompleteSchema := DQLstmt
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test061 :-
   test(parser, lex_parse, 'test/test016.sql', 
     [drop_table(t,[]),
@@ -2780,7 +2857,10 @@ test061 :-
     drop_database('$des'),
     create_view(hrsql,(select(all,top(all),no_offset,[expr(attr(_,age,_),_,_)],[],from([(my_table,_)]),where(true),group_by([]),having(true),order_by([],[])),_),my_view(age:number(integer)))]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DDLstmt DROP and CompleteSchema := DQLstmt error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test062 :-
   test(parser, lex_parse, "drop t",
     failure(error('Syntax', 'TABLE, VIEW or DATABASE', pos(1, 6)))).
@@ -2817,7 +2897,10 @@ test070 :-
   test(parser, lex_parse, "my_view(age int) : SELECT age FROM my_table",
     failure(error('Syntax', 'equals ''=''', pos(1, 20)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt SELECT(I) STATEMENTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test071 :-
   test(parser, lex_parse, 'test/test017.sql',
     [(select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
@@ -2839,7 +2922,10 @@ test071 :-
     (select(all,top(all),offset(expr(cte(int(10),number(int)),_,number(int)),expr(cte(int(10),number(int)),_,number(int))),[expr(attr(_,n,_),_,_)],[],from([(n,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(distinct,top(expr(cte(int(1),number(int)),_,number(int))),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt SELECT(I) STATEMENTS error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test072 :-
   test(parser, lex_parse, "select top 1 from t",
     failure(error('Syntax', 'SELECT list', pos(1, 14)))).
@@ -2880,7 +2966,10 @@ test081 :-
   test(parser, lex_parse, "select top 1 distinct * from t fetch first 1 rows only",
     failure(error('Semantic', 'Only one TOP/LIMIT/FETCH specification is allowed', pos(void, void)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt SELECT(II) STATEMENTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test082 :-
   test(parser, lex_parse, 'test/test018.sql', 
     [(select(all,top(all),no_offset,*,[],from([(division((t1,_),(t2,_)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
@@ -2901,7 +2990,10 @@ test082 :-
     (select(all,top(all),no_offset,*,[],from([(inner_join((t,_),(inner_join((s,_),(u,_),true),_),true),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(inner_join((t,_),(inner_join((s,_),(u,_),true),_),true),_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt SELECT(II) STATEMENTS error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test083 :-
   test(parser, lex_parse, "select * from 1 right join t2",
     failure(error('Syntax', 'a valid relation', pos(1, 15)))).  
@@ -2914,7 +3006,10 @@ test085 :-
   test(parser, lex_parse, "select * from t1 1 join t2",
     failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 18)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt UNION, EXCEPT, MINUS, INTERSECT STATEMENTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test086 :-
   test(parser, lex_parse, 'test/test019.sql', 
     [(union(distinct,(select(all,top(all),no_offset,*,[],from([(a,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(b,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_),
@@ -2930,7 +3025,10 @@ test086 :-
     (intersect(distinct,(select(all,top(all),no_offset,*,[],from([(s,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_),
     (except(distinct,(select(all,top(all),no_offset,*,[],from([(s,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_)]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt UNION, EXCEPT, MINUS, INTERSECT STATEMENTS error  
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test087 :-
   test(parser, lex_parse, "select * from a union selct * from b",
     failure(error('Syntax', 'SELECT statement', pos(1, 23)))).
@@ -2939,12 +3037,18 @@ test088 :-
   test(parser, lex_parse, "SELECT * FROM s UNION Al SELECT * FROM q",
     failure(error('Syntax', 'SELECT statement', pos(1, 23)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt WITH and ASSUME STATEMENTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test089 :-
   test(parser, lex_parse, 'test/test020.sql', 
     [(with((select(all,top(all),no_offset,*,[],from([(l,_34544)]),where(true),group_by([]),having(true),order_by([],[])),_34414),[(select(all,top(all),no_offset,[expr(cte(int(1),number(int)),_34054,number(int))],[],from([(dual,_34016)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_34240))]),_33832),(with((select(all,top(all),no_offset,*,[],from([(l,_36172)]),where(true),group_by([]),having(true),order_by([],[])),_36042),[(select(all,top(all),no_offset,[expr(cte(int(1),number(int)),_34840,number(int))],[],from([(dual,_34802)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_34994)),not((select(all,top(all),no_offset,[expr(cte(int(1),number(int)),_35256,number(int))],[],from([(dual,_35218)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_35444))),(select(all,top(all),no_offset,[expr(cte(int(1),number(int)),_35682,number(int))],[],from([(dual,_35644)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_35868))]),_34616),(with((select(all,top(all),no_offset,*,[],from([(connect,_37736)]),where(true),group_by([]),having(true),order_by([],[])),_37606),[(select(all,top(all),no_offset,[expr(attr(flight,origin,_36498),_36482,_36484),expr(attr(connect,destination,_36628),_36612,_36614)],[],from([(flight,_36758),(connect,_36780)]),where(attr(flight,destination,_36868)=attr(connect,origin,_37064)),group_by([]),having(true),order_by([],[])),connect(origin:_37366,destination:_37430))]),_36244),(with((select(all,top(all),no_offset,*,[],from([(travel,_39278)]),where(true),group_by([]),having(true),order_by([],[])),_39148),[(union(distinct,(select(all,top(all),no_offset,[expr(cte(str(mad),string(_38072)),_38048,string(_38072)),expr(cte(str(lon),string(_38162)),_38138,string(_38162)),expr(cte(frac(2,0),number(frac)),_38226,number(frac))],[],from([(dual,_38008)]),where(true),group_by([]),having(true),order_by([],[])),_37970),(select(all,top(all),no_offset,[expr(cte(str(par),string(_38496)),_38472,string(_38496)),expr(cte(str(ber),string(_38586)),_38562,string(_38586)),expr(cte(frac(3,0),number(frac)),_38650,number(frac))],[],from([(dual,_38432)]),where(true),group_by([]),having(true),order_by([],[])),_38394)),flight(origin:_38842,destination:_38906,time:_38970))]),_37808),(with((select(all,top(all),no_offset,[expr(attr(_40204,a,_40208),_40192,_40194)],[],from([(p,_40298)]),where(true),group_by([]),having(true),order_by([],[])),_40128),[(select(all,top(all),no_offset,[expr(attr(_39900,a,_39904),_39888,_39890)],[],from([(t,_39994)]),where(true),group_by([]),having(true),order_by([],[])),p(a:_39666))]),_39350),(with((select(all,top(expr(10,_41658,number(int))),no_offset,[expr(attr(_41698,a,_41702),_41686,_41688)],[],from([(p,_41792)]),where(true),group_by([]),having(true),order_by([],[])),_41546),[(union(distinct,(select(all,top(all),no_offset,[expr(cte(int(1),number(int)),_40936,number(int))],[],from([(dual,_40898)]),where(true),group_by([]),having(true),order_by([],[])),_40860),(select(all,top(all),no_offset,[expr(attr(_41178,a,_41182)+cte(int(1),number(int)),_41166,number(_41228))],[],from([(p,_41408)]),where(true),group_by([]),having(true),order_by([],[])),_41102)),p(a:_40686))]),_40370),create_view(sql,(with((select(all,top(all),no_offset,*,[],from([(path,_44300)]),where(true),group_by([]),having(true),order_by([],[])),_44170),[(union(distinct,(select(all,top(all),no_offset,*,[],from([(edge,_43102)]),where(true),group_by([]),having(true),order_by([],[])),_42988),(select(all,top(all),no_offset,[expr(attr(path,origin,_43354),_43338,_43340),expr(attr(edge,destination,_43484),_43468,_43470)],[],from([(path,_43614),(edge,_43636)]),where(attr(path,destination,_43724)=attr(edge,origin,_43920)),group_by([]),having(true),order_by([],[])),_43272)),path(origin:_42710,destination:_42774))]),_44348),paths(origin:_42112,destination:_42176)),(with((select(all,top(all),no_offset,*,[],from([(reaches,_46506)]),where(true),group_by([]),having(true),order_by([],[])),_46376),[(union(distinct,(select(all,top(all),no_offset,[expr(attr(_45088,frm,_45092),_45076,_45078),expr(attr(_45162,to,_45166),_45150,_45152)],[],from([(flights,_45240)]),where(true),group_by([]),having(true),order_by([],[])),_45010),(select(all,top(all),no_offset,[expr(attr(r1,frm,_45492),_45476,_45478),expr(attr(r2,to,_45622),_45606,_45608)],[],from([(reaches,[r1|_45752]),(reaches,[r2|_45808])]),where(attr(r1,to,_45930)=attr(r2,frm,_46126)),group_by([]),having(true),order_by([],[])),_45410)),reaches(frm:_44732,to:_44796))]),_44416),create_view(sql,(with((except(distinct,(select(all,top(all),no_offset,[expr(attr(_50358,frm,_50362),_50346,_50348),expr(attr(_50432,to,_50436),_50420,_50422)],[],from([(reaches,_50510)]),where(attr(_50594,airline,_50598)=cte(str('UA'),string(_50746))),group_by([]),having(true),order_by([],[])),_50280),(select(all,top(all),no_offset,[expr(attr(_51058,frm,_51062),_51046,_51048),expr(attr(_51132,to,_51136),_51120,_51122)],[],from([(reaches,_51210)]),where(attr(_51294,airline,_51298)=cte(str('AA'),string(_51462))),group_by([]),having(true),order_by([],[])),_50980)),_50214),[(select(all,top(all),no_offset,[expr(attr(_47682,airline,_47686),_47670,_47672),expr(attr(_47758,frm,_47762),_47746,_47748),expr(attr(_47832,to,_47836),_47820,_47822)],[],from([(flights,_47910)]),where(true),group_by([]),having(true),order_by([],[])),triples(airline:_47378,frm:_47426,to:_47474)),(union(distinct,(select(all,top(all),no_offset,*,[],from([(triples,_48660)]),where(true),group_by([]),having(true),order_by([],[])),_48546),(select(all,top(all),no_offset,[expr(attr(triples,airline,_48912),_48896,_48898),expr(attr(triples,frm,_49044),_49028,_49030),expr(attr(reaches,to,_49174),_49158,_49160)],[],from([(triples,_49304),(reaches,_49326)]),where(and(attr(triples,to,_49414)=attr(reaches,frm,_49610),attr(triples,airline,_49774)=attr(reaches,airline,_49970))),group_by([]),having(true),order_by([],[])),_48830)),reaches(airline:_48202,frm:_48266,to:_48330))]),_51560),reach(frm:_46826,to:_46890)),(with((select(all,top(all),no_offset,[expr(attr(_54222,x,_54226),_54210,_54212)],[],from([(odd,_54316)]),where(true),group_by([]),having(true),order_by([],[])),_54146),[(union(all,(select(all,top(all),no_offset,[expr(cte(int(0),number(int)),_52116,number(int))],[],from([(dual,_52078)]),where(true),group_by([]),having(true),order_by([],[])),_52040),(select(all,top(all),no_offset,[expr(attr(odd,x,_52346)+cte(int(1),number(int)),_52330,number(_52448))],[],from([(odd,_52612)]),where(attr(_52696,x,_52700)<cte(int(10),number(int))),group_by([]),having(true),order_by([],[])),_52266)),even(x:_51898)),(select(all,top(all),no_offset,[expr(attr(even,x,_53446)+cte(int(1),number(int)),_53430,number(_53548))],[],from([(even,_53712)]),where(attr(_53796,x,_53800)<cte(int(10),number(int))),group_by([]),having(true),order_by([],[])),odd(x:_53208))]),_51628),(with((select(all,top(all),no_offset,*,[],from([(p,_56290)]),where(true),group_by([]),having(true),order_by([],[])),_56160),[(except(distinct,(select(all,top(all),no_offset,*,[],from([(r,_54914)]),where(true),group_by([]),having(true),order_by([],[])),_54800),(select(all,top(all),no_offset,*,[],from([(q,_55152)]),where(true),group_by([]),having(true),order_by([],[])),_55038)),p(x:_54658)),(except(distinct,(select(all,top(all),no_offset,*,[],from([(r,_55752)]),where(true),group_by([]),having(true),order_by([],[])),_55622),(select(all,top(all),no_offset,*,[],from([(p,_56022)]),where(true),group_by([]),having(true),order_by([],[])),_55892)),q(x:_55448))]),_54388),(with((select(all,top(all),no_offset,[expr(attr(_57336,a,_57340),_57324,_57326)],[],from([(t,_57414),(media,_57436)]),where(attr(_57520,a,_57524)>attr(_57676,m,_57680)),group_by([]),having(true),order_by([],[])),_57260),[(select(all,top(all),no_offset,[expr(avg(attr(_56976,a,_56980)),_56900,number(float))],[],from([(t,_57126)]),where(true),group_by([]),having(true),order_by([],[])),media(m:_56678))]),_56362),(with((select(all,top(all),no_offset,[expr(cte(int(1),number(int))/attr(_58674,a,_58678),_58568,number(float))],[],from([(v,_58790)]),where(attr(_58874,a,_58878)>cte(int(0),number(int))),group_by([]),having(true),order_by([],[])),_58504),[(select(all,top(all),no_offset,[expr(cte(int(0),number(int)),_58342,number(int))],[],from([(dual,_58304)]),where(true),group_by([]),having(true),order_by([],[])),v(a:_58108))]),_57792)]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt WITH and ASSUME STATEMENTS error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test090 :-
   test(parser, lex_parse, "assume select 1 in t(a)",
     failure(error('Syntax', 'SELECT statement', pos(last, last)))).
@@ -2965,7 +3069,10 @@ test094 :-
   test(parser, lex_parse, "with 2 select 1 select * from v",
     failure(error('Syntax', 'schema', pos(1, 6)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DMLstmt INSERT INTO STATEMENTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test095 :-
   test(parser, lex_parse, 'test/test021.sql', 
     [insert_into(t1,[a1],[[default]]),
@@ -2981,7 +3088,10 @@ test095 :-
     insert_into(t2,[a3,b3,c3],[[cte(int(1),number(int)),cte(int(2),number(int)),cte(str(a),string(_))]]),
     insert_into(c,[],(select(all,top(all),no_offset,[expr(attr(a,a,_),_,_),expr(attr(b,b,_),_,_)],[],from([(a,_),(b,_)]),where(or(attr(a,a,_)=attr(b,b,_),attr(b,b,_)=cte(str(a1),string(_)))),group_by([]),having(true),order_by([],[])),_))]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DMLstmt INSERT INTO STATEMENTS error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test096 :-
   test(parser, lex_parse, "insert into 222 values (1, '1')",
     failure(error('Syntax', 'table name', pos(1, 13)))).
@@ -3050,7 +3160,10 @@ test112 :-
   test(parser, lex_parse, "insert into t2(a3,b3,a3) values (1,2,'a')",
     failure(error('Semantic', 'Column names must be different in [a3,b3,a3]', pos(1, 15)))).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DMLstmt DELETE and UPDATE STATEMENTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test113 :-
   test(parser, lex_parse, 'test/test022.sql', 
     [delete_from((t1,_),true),
@@ -3068,7 +3181,10 @@ test113 :-
     update((empleados,_),[expr(sueldo,_,string),expr(attr(_,sueldo,_)*cte(frac(1,1),number(frac)),_,number(_))],true),
     update((t1,[c,_]),[expr(a,_,string),expr((select(all,top(all),no_offset,[expr(attr(_,b,_),_,_)],[],from([(s,_)]),where(attr(s,a,_)=attr(c,a,_)),group_by([]),having(true),order_by([],[])),_),_,_)],attr(_,a,_)=cte(int(1),number(int)))]).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DMLstmt DELETE and UPDATE STATEMENTS error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 test114 :-
   test(parser, lex_parse, "delete * from t",
     failure(error('Syntax', 'FROM', pos(1, 8)))).
@@ -3087,11 +3203,11 @@ test117 :-
 
 test118 :-
   test(parser, lex_parse, "delete from t WHERE ((name = 'John Doe')",
-    failure(error('Syntax', 'closing parenthesis '')''', pos(1, 40)))).
+    failure(error('Syntax', 'closing parenthesis '')''', pos(last, last)))).
 
 test119 :-
   test(parser, lex_parse, "delete from t WHERE (((a.age > 25)) AND ((salary > 50000))",
-    failure(error('Syntax', 'closing parenthesis '')''', pos(1, 58)))).
+    failure(error('Syntax', 'closing parenthesis '')''', pos(last, last)))).
 
 test120 :-
   test(parser, lex_parse, "update t a=1",
@@ -3112,3 +3228,81 @@ test123 :-
 test124 :-
   test(parser, lex_parse, "update t set a=1, w=",
     failure(error('Syntax', 'an expression', pos(last, last)))).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Other cond_factor and sql_factor, etc..
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+test125 :-
+  test(parser, lex_parse, 'test/test025.sql', 
+    [(select(all,top(all),no_offset,[expr(cte(str(ok),string(A)),_,string(A))],[],from([(dual,_)]),where('$like'(cte(str(asdf),string(varchar)),cte(str('%'),string(varchar)))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cte(str(ok),string(B)),_,string(B))],[],from([(dual,_)]),where('$like'(cte(str(asdf),string(varchar)),cte(str(as__),string(varchar)))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cte(str(ok),string(C)),_,string(C))],[],from([(dual,_)]),where('$like'(cte(str(as_df),string(varchar)),cte(str('%_%'),string(varchar)),cte(str('_'),string(varchar)))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(substr('||'(lower(cte(str('A'),string(_))),upper(cte(str(b),string(_)))),cte(int(1),number(int)),cte(int(2),number(int))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cast(cte(str('1'),string(_)),number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cast(month(cte(date(2017,2,1),datetime(date))),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(hour(cte(time(22,5,31),datetime(time))),_,number(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(length(cte(str(a),string(_)))+length(cte(str(b),string(_))),_,number(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(concat(cte(str(a),string(_)),cte(str(b),string(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr('||'(cte(str(a),string(_)),cte(str(b),string(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cte(str(a),string(_))+cte(str(b),string(_)),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cast(cte(str('1'),string(_)),number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cast(month(cte(date(2017,2,1),datetime(date))),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cte(date(2017,2,1),datetime(date))-cte(date(2016,2,1),datetime(date)),_,number(integer))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(current_time-current_time,_,number(integer))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(iif(count>cte(int(0),number(int)),cte(str(ok),string(_)),cte(str(error),string(_))),_,_)],[],from([(except(distinct,(select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(s,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(case([(cte(int(1),number(int))=cte(int(1),number(int)),cte(str(a),string(_)))],cte(str(b),string(D))),_,string(D))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(case(cte(int(1),number(int)),[(cte(int(1),number(int)),cte(str(a),string(_)))],cte(str(b),string(E))),_,string(E))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    create_or_replace_table(e(a:number(integer),b:number(float)),[true,default(b,attr(_,pi,_)/cte(int(2),number(int)),number(float))])]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Other cond_factor and sql_factor, etc.. error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+test126 :-
+  test(parser, lex_parse, "select extract hour from time '22:05:31')",
+    failure(error('Syntax', 'opening parenthesis ''(''', pos(1, 16)))).
+
+test127 :-
+  test(parser, lex_parse, "select extract(hur from time '22:05:31')",
+    failure(error('Syntax', 'valid datetime field (year, month, day, hour, minute, second)', pos(1, 16)))).
+
+test128 :-
+  test(parser, lex_parse, "select extract(hour frm time '22:05:31')",
+    failure(error('Syntax', 'FROM', pos(1, 21)))).
+  
+test129 :-
+  test(parser, lex_parse, "select extract(hour from 3)",
+    failure(error('Syntax', 'valid datetime expression', pos(1, 26)))).
+
+test130 :-
+  test(parser, lex_parse, "select extract(hour from time '22:05:31'",
+    failure(error('Syntax', 'closing parenthesis '')''', pos(last, last)))).
+
+test131 :-
+  test(parser, lex_parse, "select cast('1' sa float)",
+    failure(error('Syntax', 'AS', pos(1, 17)))).
+
+test132 :-
+  test(parser, lex_parse, "select cast('1' as foat)",
+    failure(error('Syntax', 'valid type', pos(1, 20)))).
+  
+test133 :-
+  test(parser, lex_parse, "select iif(count(*)>0,'ok') from select * from t minus select * from s",
+    failure(error('Syntax', 'comma', pos(1, 27)))).
+
+test134 :-
+  test(parser, lex_parse, "select iif(count(*)>0,'ok', ) from select * from t minus select * from s",
+    failure(error('Syntax', 'valid expression', pos(1, 29)))).
+
+test135 :-
+  test(parser, lex_parse, "select case whn 1=1 then 'a' else 'b' end",
+    failure(error('Syntax', 'an expression or WHEN', pos(1, 13)))).
+
+test136 :-
+  test(parser, lex_parse, "select case when 1=1 hen 'a' else 'b' end",
+    failure(error('Syntax', 'THEN', pos(1, 22)))).
+
+test137 :-
+  test(parser, lex_parse, "select case when 1=1 then 'a' else 'b'",
+    failure(error('Syntax', 'END', pos(last, last)))).

@@ -215,6 +215,10 @@ token(Delimiter) -->>
     Delimiter \== punct('"') }, % Excludes single quotes and double quotes
   !.
 
+token(cmd_fn(Command)) -->>
+  command_function(Command),
+  !.
+
 token(cmd(Command)) -->>
   command(Command),
   !.
@@ -348,6 +352,11 @@ punctuation(':') -->> ":",   !, inc_col.
 punctuation('"') -->> """",  !, inc_col.
 punctuation('nl') -->> "\n", !, inc_line.
 
+command_function('replace')                          -->> lc("replace"),                          not_more_char,  !,  add_col(7).
+command_function('float')                            -->> lc("float"),                            not_more_char,  !,  add_col(5).       
+command_function('left')                             -->> lc("left"),                             not_more_char,  !,  add_col(4).
+command_function('right')                            -->> lc("right"),                            not_more_char,  !,  add_col(5).
+
 command('add')                              -->> lc("add"),                              not_more_char,  !,  add_col(3).       
 command('all')                              -->> lc("all"),                              not_more_char,  !,  add_col(3).       
 command('alter')                            -->> lc("alter"),                            not_more_char,  !,  add_col(5).       
@@ -392,8 +401,7 @@ command('exists')                           -->> lc("exists"),                  
 command('extract')                          -->> lc("extract"),                          not_more_char,  !,  add_col(7).                            
 command('false')                            -->> lc("false"),                            not_more_char,  !,  add_col(5).       
 command('fetch')                            -->> lc("fetch"),                            not_more_char,  !,  add_col(5). 
-command('first')                            -->> lc("first"),                            not_more_char,  !,  add_col(5).       
-command('float')                            -->> lc("float"),                            not_more_char,  !,  add_col(5).          
+command('first')                            -->> lc("first"),                            not_more_char,  !,  add_col(5).          
 command('foreign')                          -->> lc("foreign"),                          not_more_char,  !,  add_col(7).            
 command('from')                             -->> lc("from"),                             not_more_char,  !,  add_col(4).       
 command('full')                             -->> lc("full"),                             not_more_char,  !,  add_col(4).       
@@ -410,7 +418,6 @@ command('in')                               -->> lc("in"),                      
 command('is')                               -->> lc("is"),                               not_more_char,  !,  add_col(2).            
 command('join')                             -->> lc("join"),                             not_more_char,  !,  add_col(4).   
 command('key')                              -->> lc("key"),                              not_more_char,  !,  add_col(3).             
-command('left')                             -->> lc("left"),                             not_more_char,  !,  add_col(4).
 command('like')                             -->> lc("like"),                             not_more_char,  !,  add_col(4).      
 command('limit')                            -->> lc("limit"),                            not_more_char,  !,  add_col(5).               
 command('minus')                            -->> lc("minus"),                            not_more_char,  !,  add_col(5).              
@@ -429,9 +436,7 @@ command('real')                             -->> lc("real"),                    
 command('recursive')                        -->> lc("recursive"),                        not_more_char,  !,  add_col(9).       
 command('references')                       -->> lc("references"),                       not_more_char,  !,  add_col(10).    
 command('rename')                           -->> lc("rename"),                           not_more_char,  !,  add_col(6).     
-command('replace')                          -->> lc("replace"),                          not_more_char,  !,  add_col(7).
 command('restrict')                         -->> lc("restrict"),                         not_more_char,  !,  add_col(8).           
-command('right')                            -->> lc("right"),                            not_more_char,  !,  add_col(5).
 command('rollback')                         -->> lc("rollback"),                         not_more_char,  !,  add_col(8).       
 command('rows')                             -->> lc("rows"),                             not_more_char,  !,  add_col(4).       
 command('savepoint')                        -->> lc("savepoint"),                        not_more_char,  !,  add_col(9).       
@@ -504,6 +509,7 @@ function('sum_distinct')          -->> lc("sum_distinct"),             not_more_
 function('times')                 -->> lc("times"),                    not_more_char, !, add_col(5).
 function('times_distinct')        -->> lc("times_distinct"),           not_more_char, !, add_col(14).
 
+%id o id_lc_start
 %function('pi')                    -->> lc("pi"),                       not_more_char, !, add_col(2).
 %function('e')                     -->> lc("e"),                        not_more_char, !, add_col(1).
 
@@ -928,7 +934,7 @@ test018 :-
   test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select):pos(2,1),op(*):pos(2,8),cmd(from):pos(2,10),id_lc_start(t):pos(2,15),punct(','):pos(2,16),id_lc_start(s):pos(2,17),cmd(where):pos(2,19),id_lc_start(t):pos(2,25),punct('.'):pos(2,26),id_lc_start(a):pos(2,27),comparisonOp(=):pos(2,28),id_lc_start(s):pos(2,29),punct('.'):pos(2,30),id_lc_start(a):pos(2,31),op(and):pos(2,33),id_lc_start(t):pos(2,37),punct('.'):pos(2,38),id_lc_start(b):pos(2,39),comparisonOp(=):pos(2,40),id_lc_start(s):pos(2,41),punct('.'):pos(2,42),id_lc_start(b):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
 
 test019 :-
-  test(lexer, lex, 'test/test012.sql', [cmd(create):pos(1,1),op(or):pos(1,8),cmd(replace):pos(1,11),cmd(view):pos(1,19),id_lc_start(v1_1):pos(1,24),punct('('):pos(1,28),id_lc_start(a):pos(1,29),punct(')'):pos(1,30),cmd(as):pos(1,32),cmd(select):pos(1,35),id_lc_start(t1):pos(1,42),punct('.'):pos(1,44),id_lc_start(a):pos(1,45),cmd(from):pos(1,47),id_lc_start(v1_2):pos(1,52),id_lc_start(t1):pos(1,57),punct(','):pos(1,59),id_lc_start(v2_2):pos(1,60),id_lc_start(t2):pos(1,65),cmd(where):pos(1,68),id_lc_start(t1):pos(1,74),punct('.'):pos(1,76),id_lc_start(a):pos(1,77),comparisonOp(=):pos(1,78),id_lc_start(t2):pos(1,79),punct('.'):pos(1,81),id_lc_start(a):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert):pos(3,1),cmd(into):pos(3,8),id_lc_start(t):pos(3,13),cmd(values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
+  test(lexer, lex, 'test/test012.sql', [cmd(create):pos(1,1),op(or):pos(1,8),cmd_fn(replace):pos(1,11),cmd(view):pos(1,19),id_lc_start(v1_1):pos(1,24),punct('('):pos(1,28),id_lc_start(a):pos(1,29),punct(')'):pos(1,30),cmd(as):pos(1,32),cmd(select):pos(1,35),id_lc_start(t1):pos(1,42),punct('.'):pos(1,44),id_lc_start(a):pos(1,45),cmd(from):pos(1,47),id_lc_start(v1_2):pos(1,52),id_lc_start(t1):pos(1,57),punct(','):pos(1,59),id_lc_start(v2_2):pos(1,60),id_lc_start(t2):pos(1,65),cmd(where):pos(1,68),id_lc_start(t1):pos(1,74),punct('.'):pos(1,76),id_lc_start(a):pos(1,77),comparisonOp(=):pos(1,78),id_lc_start(t2):pos(1,79),punct('.'):pos(1,81),id_lc_start(a):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert):pos(3,1),cmd(into):pos(3,8),id_lc_start(t):pos(3,13),cmd(values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
 
 test020 :-
   test(lexer, lex, "a1.2", [id_lc_start(a1):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      

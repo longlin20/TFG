@@ -26,5 +26,6 @@ DESCRIBE t
 -- table name , 10
 --DESCRIBE 2
 
--- TABLES, VIEWS or DATABASES , 6
+-- TABLES, VIEWS or DATABASES , 6/end of program
 --show t
+--show

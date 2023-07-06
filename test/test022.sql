@@ -44,7 +44,7 @@ update t1 as c set a=(select b from s where s.a=c.a) where a=1;
 --delete from t where >0
 --update t set a=1 where
 
--- closing parenthesis '')''
+-- closing parenthesis '')'' end of program/end of program
 --delete from t WHERE ((name = 'John Doe')
 --delete from t WHERE (((a.age > 25)) AND ((salary > 50000))
 
