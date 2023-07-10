@@ -352,11 +352,13 @@ punctuation(':') -->> ":",   !, inc_col.
 punctuation('"') -->> """",  !, inc_col.
 punctuation('nl') -->> "\n", !, inc_line.
 
+%those can be commands and functions at the same time
 command_function('replace')                          -->> lc("replace"),                          not_more_char,  !,  add_col(7).
 command_function('float')                            -->> lc("float"),                            not_more_char,  !,  add_col(5).       
 command_function('left')                             -->> lc("left"),                             not_more_char,  !,  add_col(4).
 command_function('right')                            -->> lc("right"),                            not_more_char,  !,  add_col(5).
 
+%keyword
 command('add')                              -->> lc("add"),                              not_more_char,  !,  add_col(3).       
 command('all')                              -->> lc("all"),                              not_more_char,  !,  add_col(3).       
 command('alter')                            -->> lc("alter"),                            not_more_char,  !,  add_col(5).       
@@ -470,6 +472,7 @@ command('where')                            -->> lc("where"),                   
 command('with')                             -->> lc("with"),                             not_more_char,  !,  add_col(4).   
 command('work')                             -->> lc("work"),                             not_more_char,  !,  add_col(4).    
      
+%function     
 function('sqrt')                  -->> lc("sqrt"),                     not_more_char, !, add_col(4).
 function('ln')                    -->> lc("ln"),                       not_more_char, !, add_col(2).
 function('log')                   -->> lc("log"),                      not_more_char, !, add_col(3).

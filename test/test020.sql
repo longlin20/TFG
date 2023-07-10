@@ -27,7 +27,7 @@ ASSUME
 SELECT * FROM connect;
 
 ASSUME 
-    SELECT 'mad','lon',2.0 
+    SELECT 'mad','lon',-2.204 
     UNION
     SELECT 'par','ber',3.0
   IN 
@@ -65,6 +65,7 @@ WITH
   WHERE x < 10
   SELECT x FROM odd
  ;
+
 
 with recursive p(x) as select * from r
 except select * from q,

@@ -27,8 +27,8 @@ select case 1 when 1 then 'a' else 'b' end
 create or replace table e(a int, b float default pi/2);
 
 
---select date '2017-02-01' - 1
---select cast((datetime '1-1-1 0:0:0' - 1) as string);
+select date '2017-02-01' - 1
+select cast((datetime '1-1-1 0:0:0' - 1) as string);
 
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    Other ERROR , column

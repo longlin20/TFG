@@ -15,13 +15,18 @@ CREATE STATEMENTS
 %   |
 %   CREATE DATABASE DatabaseName*/
 
+--create_table(t(a:number(integer)),[my_sql_check_constraint(attr(_,a,_)>cte(-0.1,number(float)))])
+--create_table(t(a:number(integer)),[my_sql_check_constraint(attr(_,a,_)>cte(-0.1,number(float)))])
+
+--create table t(a integer check (a>4.13E2))
+
 
 create table t(a int);
 create table "t"("a" int)
 create table [t]([a] int)
 create table c(a string,b string);
 create table edge(origin string,destination string);
-create table flights(airline string,frm string,"to" string,departs int,arrives int);
+create table flights(airline string,frm string, "to" string,departs int,arrives int);
 CREATE TABLE employee(Name VARCHAR(20), Department VARCHAR(20), Salary INT);
 create table emp(dni string primary key, numdep int references dpto(nd));
 create table trab(dni string references emp, npro int, primary key(dni,npro));
@@ -34,16 +39,17 @@ create or replace table t(a int, b int);
 create or replace table t(a int, b int, foreign key a references s)
 create or replace table t(a int, b int, c int, d int, check (a,b) determined by (c,d))
 
-create table t like s
+create table t like s;
 
 create table t3(a3,b3,c3) as select a from n
+
 
 create view v("a") as select b from "t"
 create view "v"("a") as select b as c from "t"
 create view "v"([a]) as select b.* from "t"
 create view v(x,y) as select * from a left join b on x=y where x>1
 
-create database x
+create database x;
 
 
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -62,13 +68,14 @@ create database x
 
 --AS, LIKE or column identifier , 16/18
 --create table t('a' intiger)
---create table emp(check dnisupervisor in select dni from emp);
 
--- valid type , 17/18/19/62
+-- valid type , 17/18/19/62/24
 --create table t(a) 
 --create table t(a intiger)
 --create table emp(a, null b);
 --create or replace table t(a integer check b DETERMINED BY c,d)
+--create table emp(check dnisupervisor in select dni from emp);
+
 
 -- typed schema , 14
 --create table t

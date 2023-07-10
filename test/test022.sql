@@ -28,7 +28,6 @@ UPDATE Empleados SET Sueldo = Sueldo*1.1
 update t1 as c set a=(select b from s where s.a=c.a) where a=1;
 
 
-
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    DELETE and UPDATE ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */

@@ -89,7 +89,7 @@ test(_Module, _GoalName, _Input, failure(Error)) :-
 pretty_print_pair(Expected, Computed) :-
   format('Expected: ', []),
   pretty_print(Expected),
-  format('\nComputed: ', []),
+  format('Computed: ', []),
   pretty_print(Computed),
   format('\n', []).
 
