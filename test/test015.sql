@@ -38,7 +38,6 @@ rename table t to s
 rename view v to s
 
 
-
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    ALTER and RENAME STATEMENTS ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */

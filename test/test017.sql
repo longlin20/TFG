@@ -51,14 +51,13 @@ FROM Empleados NATURAL INNER JOIN Domicilios
 ORDER BY "Codigo postal", Nombre
 
 
-select n from n offset 10 limit 10
+select n from n offset 10 limit 10;
 
-select distinct * from t fetch first 1 rows only
+select distinct * from t fetch first 1 rows only;
 
 --correct but can't check with test.pl (i guess is because min() and max())
 --select department,max(salary) from employee group by department;
 --select t.a from t join r on t.a=r.a where t.a>=all (select min(a) from s);
-
 
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    SELECT STATEMENTS 1 ERROR , column

@@ -20,6 +20,7 @@ UNION, EXCEPT, MINUS, INTERSECT STATEMENTS
 
 
 select * from a union select * from b;
+
 create view parent(parent,child) as select * from father union select * from mother;
 select * from p union select * from q union select pqs.x,p.y from pqs,p where pqs.y=p.x union select pqs.x,q.y from pqs,q where pqs.y=q.x;
 create view n(n) as select 0 union all select n+1 from n

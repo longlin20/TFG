@@ -15,8 +15,6 @@ CREATE STATEMENTS
 %   |
 %   CREATE DATABASE DatabaseName*/
 
---create_table(t(a:number(integer)),[my_sql_check_constraint(attr(_,a,_)>cte(-0.1,number(float)))])
---create_table(t(a:number(integer)),[my_sql_check_constraint(attr(_,a,_)>cte(-0.1,number(float)))])
 
 --create table t(a integer check (a>4.13E2))
 
@@ -42,14 +40,17 @@ create or replace table t(a int, b int, c int, d int, check (a,b) determined by 
 create table t like s;
 
 create table t3(a3,b3,c3) as select a from n
-
+create table t3(a3,b3,c3) as select a from n as a
 
 create view v("a") as select b from "t"
 create view "v"("a") as select b as c from "t"
 create view "v"([a]) as select b.* from "t"
 create view v(x,y) as select * from a left join b on x=y where x>1
 
+
 create database x;
+
+
 
 
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -139,3 +140,5 @@ create database x;
 
 -- column sequence separated by commas , 15
 --create view v() as select * from a
+
+
