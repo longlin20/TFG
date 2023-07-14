@@ -84,13 +84,4 @@ with v(a) as select 0 select 1/a from v where a>0;
    WITH and ASSUME STATEMENTS ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
--- SELECT statement , end of the program
---assume select 1 in t(a)
---with v(a) as select 1
---with v(a) as select 1 from dual
-
--- AS , 11
---with v(a) select 1 select * from v
-
--- schema , 6
---with 2 select 1 select * from v
+--test090-test094

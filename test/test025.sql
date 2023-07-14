@@ -34,38 +34,5 @@ select cast((datetime '1-1-1 0:0:0' - 1) as string);
    Other ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
--- opening parenthesis ''('' , 26
---select extract hour from time '22:05:31')
 
--- valid datetime field (year, month, day, hour, minute, second) , 16
---select extract(hur from time '22:05:31')
-
--- FROM , 21
---select extract(hour frm time '22:05:31')
-
--- valid datetime expression , 26
---select extract(hour from 3)
-
--- closing parenthesis '')'' , end of the program
---select extract(hour from time '22:05:31'
-
--- AS , 17
---select cast('1' sa float)
-
--- valid type , 20
---select cast('1' as foat)
- 
--- comma , 27
---select iif(count(*)>0,'ok') from select * from t minus select * from s
-
--- valid expression , 29
---select iif(count(*)>0,'ok', ) from select * from t minus select * from s
-
--- an expression or WHEN , 13
---select case whn 1=1 then 'a' else 'b' end
-
--- THEN , 22
---select case when 1=1 hen 'a' else 'b' end
-
--- END , end of program
---select case when 1=1 then 'a' else 'b'
+--test123-test134

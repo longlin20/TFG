@@ -32,28 +32,4 @@ update t1 as c set a=(select b from s where s.a=c.a) where a=1;
    DELETE and UPDATE ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
-
--- FROM , 8
---delete * from t
-
--- table name , end of program
---delete from 
-
--- valid WHERE condition , 21/23
---delete from t where >0
---update t set a=1 where
-
--- closing parenthesis '')'' end of program/end of program
---delete from t WHERE ((name = 'John Doe')
---delete from t WHERE (((a.age > 25)) AND ((salary > 50000))
-
--- SET , 10
---update t a=1
-
--- sequence of column assignments Col=Expr , end of program
---update t set 
---update t set a=1,
---update t set a=1, w
-
--- an expression , end of program
---update t set a=1, w=
+--test111-test121

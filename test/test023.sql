@@ -23,9 +23,4 @@ DESCRIBE t
    ISL STATEMENTS ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
--- table name or view name , 10
---DESCRIBE 2
-
--- TABLES, VIEWS or DATABASES , 6/end of program
---show t
---show
+--test002-test003

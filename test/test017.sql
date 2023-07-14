@@ -63,28 +63,4 @@ select distinct * from t fetch first 1 rows only;
    SELECT STATEMENTS 1 ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
---SELECT list , 14/23
---select top 1 from t
---select distinct top 1 top * from t
-
--- comma or closing parenthesis '')'' , 41
---select * from t1 inner join t2 using (c b)
-
--- BY , 28/23
---select person from t group yb a 
---SELECT N FROM E ORDER Yb N
-
--- valid WHERE condition , end of the program
---SELECT * FROM t WHERE
-
--- a comparison operator , end of the program
---SELECT * FROM t WHERE a
-
--- valid expression , end of the program
---SELECT * FROM t WHERE a=
-
--- ORDER BY criteria
---SELECT N FROM E ORDER BY by
-
--- Only one TOP/LIMIT/FETCH specification is allowed , void
---select top 1 distinct * from t fetch first 1 rows only
+--test072-test081

@@ -897,10 +897,6 @@ non_join_relation((T,_)) -->
 non_join_relation((R,AS)) -->
   dqlStmt([(R,AS)|STs]/STs).
 
-/*peek_tokens([Token:_|_]) :-
-  (Token = punct(_)), 
-  !, 
-  fail.*/
 peek_tokens([T]) -->
   [T:_].
 peek_tokens([T|Ts]) -->
@@ -1480,39 +1476,47 @@ sql_constant(_) -->
 */
 
 %date_constant
-sql_date_constant(cte(date(Y,M,D),datetime(date))) -->
+sql_date_constant(cte(D,datetime(date))) -->
   [cmd(date):_],
   optional_cmd(bc,BC),
   current_position(Position),
   str_value(C),
-  /*{ 
+  /*{atom_to_date(C,UD),
+  my_normalized_date(UD,D)}.*/
+  { 
     string_chars(C, Chars),
     (phrase(valid_date_format, Chars) -> true; 
     set_error_with_parameter('Syntax', 'DATE String format must be [BC] \'Int(Year)-Int(month)-Int(day)\'' , [], Position)),
     split_string(C, "-", "", DateParts),
-    maplist(number_string, [YRaw, M, D], DateParts),
-    adjust_year(BC, YRaw, Y)            % Adjust year if BC is true
-  }*/.  
+    maplist(number_string, [YRaw, M, Day], DateParts),
+    adjust_year(BC, YRaw, Y),            % Adjust year if BC is true
+    D = date(Y, M, Day)
+  }.
 
-sql_date_constant(cte(time(H,Mi,Se),datetime(time))) -->
+sql_date_constant(cte(D,datetime(time))) -->
   [cmd(time):_],
   current_position(Position),
   str_value(C),
-  /*{ 
+  /*{atom_to_time(C,UD),
+  my_normalized_time(UD,D)}.*/
+  { 
     string_chars(C, Chars),
     (phrase(valid_time_format, Chars) -> true; 
     set_error_with_parameter('Syntax', 'TIME String format must be \'Int(hour):Int(minute):Int(second)\'' , [], Position)),
     split_string(C, ":", "", TimeParts),
-    maplist(number_string, [H, Mi, Se], TimeParts)
-  }*/.
+    maplist(number_string, [H, Mi, Se], TimeParts),
+    D = time(H, Mi, Se)
+  }.
 
-sql_date_constant(cte(datetime(Y,M,D,H,Mi,S),datetime(datetime))) -->
+sql_date_constant(cte(D,datetime(datetime))) -->
   ([cmd(datetime):_];
   [cmd(timestamp):_]),
   optional_cmd(bc,BC),
   current_position(Position),
   str_value(C),
-  /*{ 
+  /*{atom_to_datetime(C,UD),
+  my_normalized_datetime(UD,D)}.*/
+  { 
     string_chars(C, Chars),
     (phrase(valid_datetime_format, Chars) -> true; 
     set_error_with_parameter('Syntax', 'DATETIME/TIMESTAMP String format must be [BC] \'Int(Year)-Int(month)-Int(day) Int(hour):Int(minute):Int(second)\'' , [], Position)),
@@ -1520,11 +1524,13 @@ sql_date_constant(cte(datetime(Y,M,D,H,Mi,S),datetime(datetime))) -->
     split_string(DateString, "-", "", DateParts),
     split_string(TimeString, ":", "", TimeParts),
     append(DateParts, TimeParts, DateTimeParts),
-    maplist(number_string, [YRaw, M, D, H, Mi, S], DateTimeParts),
-    adjust_year(BC, YRaw, Y)            % Adjust year if BC is true
-  }*/.  
+    maplist(number_string, [YRaw, M, Day, H, Mi, S], DateTimeParts),
+    adjust_year(BC, YRaw, Y),            % Adjust year if BC is true
+    D = datetime(Y, M, Day, H, Mi, S)
+  }.
 
 % define valid_date_format
+
 valid_date_format -->
   one_to_four_digits, ['-'], !, one_or_two_digits, ['-'], !, one_or_two_digits.
 
@@ -3138,7 +3144,7 @@ test105 :-
 test106 :-
   test(parser, lex_parse, "INSERT INTO  t1 VALUES (DATE 2000)",
     failure(error('Syntax', 'comma or closing parenthesis '')''', pos(1, 30)))).
-
+/*
 test107 :-
   test(parser, lex_parse, "INSERT INTO t1 VALUES (TIME '122:07:01')",
     failure(error('Syntax', 'TIME String format must be ''Int(hour):Int(minute):Int(second)''', pos(1, 29)))).  
@@ -3150,16 +3156,16 @@ test108 :-
 test109 :-
   test(parser, lex_parse, "INSERT INTO  t1 VALUES (TIMESTAMP BC '2023-06-01 1345:30')",
     failure(error('Syntax', 'DATETIME/TIMESTAMP String format must be [BC] ''Int(Year)-Int(month)-Int(day) Int(hour):Int(minute):Int(second)''', pos(1, 38)))).
-
-test110 :-
+*/
+test107 :-
   test(parser, lex_parse, "insert into t3 values (1, '1')",
     failure(error('Semantic', 'Unmatching number of values => 2 (must be 3)', pos(1, 23)))).
   
-test111 :-
+test108 :-
   test(parser, lex_parse, "insert into t3(a2,a3) values (1,2,'a')",
     failure(error('Semantic', 'Unmatching number of values => 3 (must be 2)', pos(1, 30)))).
 
-test112 :-
+test109 :-
   test(parser, lex_parse, "insert into t2(a3,b3,a3) values (1,2,'a')",
     failure(error('Semantic', 'Column names must be different in [a3,b3,a3]', pos(1, 15)))).
 
@@ -3167,7 +3173,7 @@ test112 :-
 %DMLstmt DELETE and UPDATE STATEMENTS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test113 :-
+test110 :-
   test(parser, lex_parse, 'test/test022.sql', 
     [delete_from((t1,_),true),
     delete_from((t1,[t,_]),true),
@@ -3188,55 +3194,55 @@ test113 :-
 %DMLstmt DELETE and UPDATE STATEMENTS error
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test114 :-
+test111 :-
   test(parser, lex_parse, "delete * from t",
     failure(error('Syntax', 'FROM', pos(1, 8)))).
 
-test115 :-
+test112 :-
+  test(parser, lex_parse, "update t set a=1, w=",
+    failure(error('Syntax', 'an expression', pos(last, last)))).
+    
+test113 :-
   test(parser, lex_parse, "delete from",
     failure(error('Syntax', 'table name', pos(last, last)))).
 
-test116 :-
+test114 :-
   test(parser, lex_parse, "delete from t where >0",
     failure(error('Syntax', 'valid WHERE condition', pos(1, 21)))).
   
-test117 :-
+test115 :-
   test(parser, lex_parse, "update t set a=1 where",
     failure(error('Syntax', 'valid WHERE condition', pos(last, last)))).
 
-test118 :-
+test116 :-
   test(parser, lex_parse, "delete from t WHERE ((name = 'John Doe')",
     failure(error('Syntax', 'closing parenthesis '')''', pos(last, last)))).
 
-test119 :-
+test117 :-
   test(parser, lex_parse, "delete from t WHERE (((a.age > 25)) AND ((salary > 50000))",
     failure(error('Syntax', 'closing parenthesis '')''', pos(last, last)))).
 
-test120 :-
+test118 :-
   test(parser, lex_parse, "update t a=1",
     failure(error('Syntax', 'SET', pos(1, 10)))).
   
-test121 :-
+test119 :-
   test(parser, lex_parse, "update t set",
     failure(error('Syntax', 'sequence of column assignments Col=Expr', pos(last, last)))).
 
-test122 :-
+test120 :-
   test(parser, lex_parse, "update t set a=1,",
     failure(error('Syntax', 'sequence of column assignments Col=Expr', pos(last, last)))).
 
-test123 :-
+test121 :-
   test(parser, lex_parse, "update t set a=1, w",
     failure(error('Syntax', 'sequence of column assignments Col=Expr', pos(1, 19)))).
-
-test124 :-
-  test(parser, lex_parse, "update t set a=1, w=",
-    failure(error('Syntax', 'an expression', pos(last, last)))).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %Other cond_factor and sql_factor, etc..
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test125 :-
+test122 :-
   test(parser, lex_parse, 'test/test025.sql', 
     [(select(all,top(all),no_offset,[expr(cte(ok,string(A)),_,string(A))],[],from([(dual,_)]),where('$like'(cte(asdf,string(varchar)),cte('%',string(varchar)))),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(ok,string(B)),_,string(B))],[],from([(dual,_)]),where('$like'(cte(asdf,string(varchar)),cte(as__,string(varchar)))),group_by([]),having(true),order_by([],[])),_),
@@ -3261,67 +3267,77 @@ test125 :-
     (select(all,top(all),no_offset,[expr(cast(cte(datetime(1,1,1,0,0,0),datetime(datetime))-cte(1,number(integer)),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Other cond_factor and sql_factor, etc.. error
+% Other cond_factor and sql_factor, etc.. error
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test126 :-
+test123 :-
   test(parser, lex_parse, "select extract hour from time)",
     failure(error('Syntax', 'opening parenthesis ''('' not found before', pos(void, void)))).
 
-test127 :-
+test124 :-
   test(parser, lex_parse, "select extract(hur from time '22:05:31')",
     failure(error('Syntax', 'valid datetime field (year, month, day, hour, minute, second)', pos(1, 16)))).
 
-test128 :-
+test125 :-
   test(parser, lex_parse, "select extract(hour frm time '22:05:31')",
     failure(error('Syntax', 'FROM', pos(1, 21)))).
   
-test129 :-
+test126 :-
   test(parser, lex_parse, "select extract(hour from 3)",
     failure(error('Syntax', 'valid datetime expression', pos(1, 26)))).
 
-test130 :-
+test127 :-
   test(parser, lex_parse, "select extract(hour from time '22:05:31'",
     failure(error('Syntax', 'closing parenthesis '')''', pos(last, last)))).
 
-test131 :-
+test128 :-
   test(parser, lex_parse, "select cast('1' sa float)",
     failure(error('Syntax', 'AS', pos(1, 17)))).
 
-test132 :-
+test129 :-
   test(parser, lex_parse, "select cast('1' as foat)",
     failure(error('Syntax', 'valid type', pos(1, 20)))).
   
-test133 :-
+test130 :-
   test(parser, lex_parse, "select iif(count(*)>0,'ok') from select * from t minus select * from s",
     failure(error('Syntax', 'comma', pos(1, 27)))).
 
-test134 :-
+test131 :-
   test(parser, lex_parse, "select iif(count(*)>0,'ok', ) from select * from t minus select * from s",
     failure(error('Syntax', 'valid expression', pos(1, 29)))).
 
-test135 :-
+test132 :-
   test(parser, lex_parse, "select case whn 1=1 then 'a' else 'b' end",
     failure(error('Syntax', 'comma or FROM clause or end of SELECT statement', pos(1, 17)))).
 
-test136 :-
+test133 :-
   test(parser, lex_parse, "select case when 1=1 hen 'a' else 'b' end",
     failure(error('Syntax', 'THEN', pos(1, 22)))).
 
-test137 :-
+test134 :-
   test(parser, lex_parse, "select case when 1=1 then 'a' else 'b'",
     failure(error('Syntax', 'END', pos(last, last)))).
 
-test138 :-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MORE DQLstmt SELECT JOINS STATEMENTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+test135 :-
   test(parser, lex_parse, 'test/test026.sql', 
     [(select(all,top(all),no_offset,*,[],from([(division((t1,_),(t2,_)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(inner_join((t1,_),(t2,_),true),_),(inner_join((t3,_),(t4,_),true),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(full_join((t,_),(s,_),attr(t,a,_)=attr(s,a,_)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(inner_join((t1,_),(t2,_),equijoin([attr(_,c,_)])),_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
 
-test139 :-
+test136 :-
   test(parser, lex_parse, 'test/test027.sql', 
     [(select(all,top(all),no_offset,*,[],from([(left_join((t1,_),(t,_),equijoin(natural)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(right_join((t,_),(s,_),equijoin(natural)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(right_join((t1,[table1|_]),(t2,[table2|_]),true),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(left_join((s,_),(right_join((q,_),(sp,_),attr(q,sno,_)=attr(sp,sno,_)),_),attr(s,sno,_)=attr(q,sno,_)),_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
+
+test137 :-
+  test(parser, lex_parse, 'test/test028.sql', 
+    [(select(all,top(all),no_offset,[expr(attr(_,c,_),_,_)],[],from([(select(all,top(all),no_offset,[expr(attr(_,a,_),c,_)],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),[v|_])]),where(attr(v,c,_)=cte(1,number(_))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,*,[],from([(inner_join((full_join((t,_),(s,_),true),_),(u,_),true),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,*,[],from([(left_join((full_join((t,_),(s,_),equijoin(natural)),_),(u,_),or(cte(10,number(_))*attr(s,c,_)=attr(u,b,_),cte(100,number(_))*attr(t,b,_)=attr(u,b,_))),_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).

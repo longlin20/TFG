@@ -49,9 +49,4 @@ select * from (t natural full join s) natural full join u;
    SELECT STATEMENTS 2 ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
--- a valid relation , 15
---select * from 1 right join t2
-
--- valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT) , 20/18
---select * from t1 t s join t2
---select * from t1 1 join t2
+--test083-test085

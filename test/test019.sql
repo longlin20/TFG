@@ -43,7 +43,4 @@ select a from s where b not in ((select a from t where t.a=s.a) union (select a 
    UNION, EXCEPT, MINUS, INTERSECT STATEMENTS ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */
 
-
--- select statement , 23
---select * from a union selct * from b;
---SELECT * FROM s UNION Al SELECT * FROM q;
+--test087-test088

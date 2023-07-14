@@ -8,8 +8,6 @@
             my_list_to_list_of_lists/2,
             my_zipWith/4]).
 
-%:- use_module(parser).
-
 :- use_module(des_data,
           [ my_attribute/5]).
 
