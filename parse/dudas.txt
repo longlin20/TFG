@@ -1,34 +1,49 @@
-1) time y to son palabras reservadas cm en mi caso y en algunos ejemplos actuan como id, 
-¿debo aceptar que los nombres de tabla,columna...
-pueden ser palabras reservadas cmd(to, table) y function(lenght)?
+1) Identificador de user pueden ser palabras reservadas pero excepto UNION EXCEPT INTERSECT y MINUS, 
+porque si son identificador esta sentencia "select * from a union select * from b"; 
+lo trata como 2 select, "select * from a union" y "select * from b", 
+lo he intentando solucionarlo poniendo statements UNION, MINUS... antes de statement select_DQL pero 
+en este caso el programa es menos eficiente y que en caso de 
+"select iif(count(*)>0,'ok','error') from select * from t minus select * from s" lo trata como 
+"select iif(count(*)>0,'ok','error') from select * from t " MINUS "select * from s"
+y lo correcto sera que el MINUS esta dentro del from 
+"...from([(except(distinct,(select(all,top(all),no_offset,*,[],from([(t,_)]),..."
+No se si tienes algun consejo para solucionar esto.
 
-Como por ejemplo en eso dos sentencias
-create table flights(airline string,frm string,to string,departs int,arrives int);
-CREATE TABLE flight(origin string, destination string, time real); 
+2)tmlStmt([savepoint([SP])|STs]/STs) -->
+  [cmd(savepoint):_],
+  filename(FileName)                  # 'double quotes id (savepoint name)',
+  {atom_concat(FileName,'.ddb',SP)}.
+veo que fileName no solo puden ser double quotes id que tambien podria ser hasta numeros, str y palabras reservadas...
+Quiero saber que podrian ser filename, 
+veo en des_commands que puede ser cualquier entre double quotes
+o que no incluyan ninguno de los que caracteres ";" pero no estoy seguro.
 
-2) Optional_referential_triggered_action no se para que sirve, porque no veo ningun utilidad por ahora.
+3) 
+my_sql_left_quotation_mark("[",ACCESS) :-
+  to_uppercase(ACCESS,'ACCESS'),
+  !. 
+my_sql_left_quotation_mark("",DB2) :-
+  to_uppercase(DB2,'DB2'),
+  !.
+my_sql_left_quotation_mark("`",MYSQL) :-
+  to_uppercase(MYSQL,'MYSQL'),
+  !.
+...... 
+no se para que sirven estos predicados,
+se que es una parte de las reglas para reconocer
+las palabras encerrado por "[", """" y "`" pero no se la utilidad de los predicados 
+mencionado arriba y no se si hace falta implementarlo.
 
-3) En join relacion tengo un problema que no he podido resolver
-estos cuatros casos sale correcto
-select * from t join s join u;
-select * from (t join s join u);
-select * from t join (s join u);
-select * from t join s join u;
+4)Los Joins son bastantes ineficientes si pongo 4 o mas sentencias de Joins en un mismo archivo tardan bastante tiempo, 
+no estoy seguro de que si en el sistema DES de ahora también es asi,
+y no se como podré ver el tiempo de ejecucion.
 
-Pero cuando el primer join esta dentro de parentesis y dejando el segundo join fuera sale error.
-Que es muy probable que sea un error de corte(!).
-Al hacer debug creo sale el error porque en select_DQL
-consume el parentesis de apertura y en el predicado relations ya solo queda parentesis de cierre y por eso
-sale error, pero no estoy seguro. 
---select * from (t join s) join u;
 
-4) En estos casos sale error, creo que es poruqe no son de mismo tipo.
---select date '2017-02-01' - 1
---select cast((datetime '1-1-1 0:0:0' - 1) as string);
-
-5) He ignorado la mayoria de los Syntax check ya que depende de bastantes otros predicados:
--syntax_check_redef
--syntax_check_same_types
-
-6) Tampoco el predicado create_or_replace_view() dentro del HR-SQL CREATE VIEW syntax,
-tambien porque necesita muchos  otros predicados que desconozco la funcionalidad.
+las cosas que faltan por ahora que despues estan ya en el sistema actual de DES
+-El gestion de error, habrá que hacer modificaciones. 
+-syntax_check_redef, syntax_check_same_types...
+-Gestion de los constantes relacionados con tiempo(DATE, TIME, DATETIME Y TIMESTAMP)
+ (Ya tengo implementado uno simplificado para ver los resultados que sale y hacer comparacion
+ habra que sustituir por los que estan en DES).
+-allowed_with_schemas
+-create_or_replace_view()

@@ -49,6 +49,6 @@ utils.pl: aqui contiene predicados de des_common.pl y des_dl_debug.pl que necesi
 
 dudas.txt: las dudas.
 
-paquete test:
-test001-test013 para lexer.
-test014-test025 para parser.
+carpeta test:
+test001.sql-test013.sql para lexer.
+test014.sql-test028.sql para parser.

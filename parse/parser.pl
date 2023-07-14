@@ -1328,7 +1328,7 @@ tmlStmt([rollback([])|STs]/STs) -->
 % SAVEPOINT
 tmlStmt([savepoint([SP])|STs]/STs) -->
   [cmd(savepoint):_],
-  filename(FileName)                  # 'string (savepoint name)',
+  filename(FileName)                  # 'double quotes id(savepoint name)',
   {atom_concat(FileName,'.ddb',SP)}.
 
 % filename(FileName)//
@@ -3338,6 +3338,6 @@ test136 :-
 
 test137 :-
   test(parser, lex_parse, 'test/test028.sql', 
-    [(select(all,top(all),no_offset,[expr(attr(_,c,_),_,_)],[],from([(select(all,top(all),no_offset,[expr(attr(_,a,_),c,_)],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),[v|_])]),where(attr(v,c,_)=cte(1,number(_))),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,*,[],from([(inner_join((full_join((t,_),(s,_),true),_),(u,_),true),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    [(select(all,top(all),no_offset,*,[],from([(inner_join((full_join((t,_),(s,_),true),_),(u,_),true),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,c,_),_,_)],[],from([(select(all,top(all),no_offset,[expr(attr(_,a,_),c,_)],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),[v|_])]),where(attr(v,c,_)=cte(1,number(_))),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(left_join((full_join((t,_),(s,_),equijoin(natural)),_),(u,_),or(cte(10,number(_))*attr(s,c,_)=attr(u,b,_),cte(100,number(_))*attr(t,b,_)=attr(u,b,_))),_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
