@@ -15,27 +15,26 @@ ALTER and RENAME STATEMENTS
 
 
 
-alter table t1 add a int
-alter table t1 add a int not null
-alter table t1 add constraint primary key(a, c)
-alter table t1 add  constraint not null b;
-alter table t1 add  constraint unique(b);
-alter table t1 add  constraint candidate key b;
-alter table t1 add  constraint check a determined by b;
-alter table t1 add  constraint check (a,b) determined by (a,b);
-alter table t1 add  constraint check (a>0);
+alter table t1 add a int;
+alter table t1 add a int not null;
+alter table t1 add constraint primary key(a, c);
+alter table t1 add constraint not null b;
+alter table t1 add constraint unique(b);
+alter table t1 add constraint candidate key b;
+alter table t1 add constraint check a determined by b;
+alter table t1 add constraint check (a,b) determined by (a,b);
+alter table t1 add constraint check (a>0);
 
-alter table t1 drop COLUMN a
-alter table t1 drop a
-alter table t1 drop constraint primary key a
-alter table t1 drop constraint primary key(a)
+alter table t1 drop COLUMN a;
+alter table t1 drop a;
+alter table t1 drop constraint primary key a;
+alter table t1 drop constraint primary key(a);
 
+alter table t1 alter column a1 set data type varchar(10);
+alter table t1 alter column a1 string default '';
 
-alter table t1 alter column a1 set data type varchar(10)
-alter table t1 alter column a1 string default ''
-
-rename table t to s
-rename view v to s
+rename table t to s;
+rename view v to s;
 
 
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

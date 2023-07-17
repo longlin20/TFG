@@ -1,10 +1,14 @@
-select distinct top 1 top * from t
+--select * from (t full join s) join u;
 
 
---CORRECTO
---select * from a join union select * from b;
+--select date '2017-02-01'-date '2016-02-01';
 
---TODO
---select * from a join union union select * from b;
+/*
+create table t3(a3,b3,c3) as select a from n;
+create table t3(a3,b3,c3) as select a from n as;
+create table t3(a3,b3,c3) as select a from n as a;
+SELECT dni FROM vista1 EXCEPT ((SELECT dniEmp FROM distribucion) UNION (SELECT dniDir FROM proyectos));
+select * from a union select * from b;
 
---select extract hour from time)
+
+*/

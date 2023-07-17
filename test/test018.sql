@@ -36,15 +36,6 @@ select * from (t join s join u);
 select * from t join (s join u);
 
 
-/*
-select * from (t join s) join u;
-
-select * from (t natural full join s) left join u on t.a=u.a;
-select * from (t natural full join s) left join u on s.a=u.a;
-select * from (t natural full join s) left join u on 10*s.c=u.b;
-select * from (t natural full join s) left join u on 10*s.c=u.b or 100*t.b=u.b;
-select * from (t natural full join s) natural full join u;
-*/
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    SELECT STATEMENTS 2 ERROR , column
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% */

@@ -13,7 +13,8 @@
             set_error/4,
             reset_error/0,
             process_error/0,
-            set_error_with_parameter/4]).
+            set_error_with_parameter/4,
+            set_error_no_fail/4]).
 
 :- use_module(utils).
 
@@ -39,6 +40,8 @@
 % Parse the tokens from a SQL programa and return the corresponding list of sentences, each one represented by its syntax tree
 % If parse/2 fails, an error should be asserted already,
 % and then it is displayed with process_error/0
+
+/*
 lex_parse(Input) :-
   lex(Input, Tokens),
   phrase(filter_tokens(FilteredTokens, []), Tokens),
@@ -53,38 +56,57 @@ lex_parse(Input, SyntaxTrees) :-
   phrase(filter_tokens(FilteredTokens, []), Tokens),
   !,
   parse(FilteredTokens, SyntaxTrees).
+*/
+
+
+lex_parse(Input) :-
+  lex(Input, Tokens),
+  phrase(filter_tokens(FilteredTokens, []), Tokens),
+  !,
+  split_statements(FilteredTokens, [punct(';'):_], StatementLists),
+  maplist(parse, StatementLists, SyntaxTrees),
+  flatten(SyntaxTrees, FlatSyntaxTrees),
+  forall(member(Tree, FlatSyntaxTrees), pretty_print(Tree)).
+
+lex_parse(Input, FlatSyntaxTrees) :-
+  lex(Input, Tokens),
+  phrase(filter_tokens(FilteredTokens, []), Tokens),
+  !,
+  split_statements(FilteredTokens, [punct(';'):_], StatementLists),
+  maplist(parse, StatementLists, SyntaxTrees),
+  flatten(SyntaxTrees, FlatSyntaxTrees).
+
+split_statements([], _, [[]]) :- !.
+split_statements([punct(';'):_|Rest], Sep, [[]|Xs]) :- !, split_statements(Rest, Sep, Xs).
+split_statements([X|Xs], Sep, [[X|Y]|Ys]) :- split_statements(Xs, Sep, [Y|Ys]).
+
+
+parse([], SyntaxTrees) :-
+  SyntaxTrees = [],
+  !.
 
 parse(Tokens, SyntaxTrees) :-
   reset_error,
-  phrase(statements(SyntaxTrees/[]), Tokens),
+  phrase(statement(SyntaxTrees/[]), Tokens),
   !.
 
 parse(_Tokens, _SyntaxTrees) :-
   process_error,
   !, fail.
 
-% statements(-STs1/STs)//
-% statements ::=
+
 %   DDLstmt[;] | DMLstmt[;] | DQLstmt[;] | ISLstmt[;] | TMLstmt[;]
-statements(STs/STs) --> [].
-statements(STs1/STs) --> 
-  statement(STs1/STs2),
-  statements(STs2/STs).
-
-statement(STs1/STs2) -->
+% DDLstmt[;] | DMLstmt[;] | DQLstmt[;] | ISLstmt[;] | TMLstmt[;]
+statement(STs) -->
   {statement_type(Stmt)},
-  call(Stmt, STs1/STs2),
-  ([punct(';'):_] -> {!} ; {true}).
-
-statement(_) -->
-  [punct(')'):_],
-  {set_error_with_parameter('Syntax', 'opening parenthesis ''('' not found before', [], pos(void, void))}.
+  call(Stmt, STs),
+  optional_punct(';'),
+  ([] ; [punct(')'):Pos], {set_error_with_parameter('Syntax', 'opening parenthesis ''('' not found before', [], Pos)} ;
+        [punct(','):Pos], {set_error_with_parameter('Syntax', 'end of statement', [], Pos)} ;
+        [punct('('):Pos], {set_error_with_parameter('Syntax', 'end of statement', [], Pos)}).
 
 statement(_) -->
   set_error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)').
-
-
-
 
 statement_type(dqlStmt).
 statement_type(dmlStmt).
@@ -262,7 +284,8 @@ ddlStmt([drop_view(Name,Clauses)|STs]/STs) -->
   optional_drop_clauses(view,Clauses1),
   viewname(Name)                      # 'view name or optional drop view clauses(IF EXISTS, CASCADE)',
   optional_drop_clauses(view,Clauses2),
-  {append(Clauses1,Clauses2,Clauses)}.
+  {append(Clauses1,Clauses2,Clauses)},
+  set_error_no_fail('Syntax', 'end of statement').
   %!.
 
 % DROP SCHEMA
@@ -297,7 +320,7 @@ complete_constrained_typed_schema(Schema,Ctrs) -->
   punct('(')                          # 'opening parenthesis ''(''',
   constrained_typed_columns(Cs,CCtrs),
   optional_table_constraints(TCtrs),
-  punct(')')                          # 'closing parenthesis '')''',
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')),
   {Schema =.. [Name|Cs],
     append(CCtrs,TCtrs,Ctrs)}.
 
@@ -339,7 +362,7 @@ referenced_column(_FC,TableName,TC) -->
   punct('(')                          # 'opening parenthesis ''(''',
   !,
   untyped_column(TC)                  # 'a column name',
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
 referenced_column(C,TableName,C) -->
   tablename(TableName)                # 'table name'.
   %!.
@@ -493,7 +516,7 @@ hrsql_typed_schema(Schema) -->
   relname(Name)                       # 'relation name',
   [punct('('):_],
   hrsql_typed_columns(Cs),
-  punct(')')                          # 'closing parenthesis '')''',
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')),
   {Schema =.. [Name|Cs]}.
 
 hrsql_typed_columns([C:T]) --> 
@@ -914,12 +937,8 @@ look_ahead_division_op(SIn,SOut) :-
   peek_tokens(_Tokens,SIn,SOut),
   division_operator(SOut,_SOut2).
 
-division_operator([cmd(division):_|_], _).
-
-p_ren_leading_relation(R) -->
-  opening_parentheses_star(N),
-  p_ren_relation(R),
-  closing_parentheses_star(N).
+division_operator -->
+  [cmd(division):_].
 
 remainder_division_relation(LR,JR) -->
   [cmd(division):_],
@@ -978,6 +997,10 @@ outer_kind(right_join) -->
 outer_kind(full_join) -->
   [cmd(full):_].
 
+p_ren_leading_relation(R) -->
+  opening_parentheses_star(N),
+  p_ren_relation(R),
+  closing_parentheses_star(N).
 
 optional_join_condition(Cond) -->
   join_condition(Cond).
@@ -1838,31 +1861,33 @@ sql_expression(PP,Lo,To) -->
   r_sql_expression(PP,0,L/Lo,T/To).
 sql_expression(PP,Lo,To) -->
   [op(OP):_],
-  {operator(P,FX,[T,Ta],_,OP),
+  {operator(P,FX,[T,Ta],POP,OP),
     prefix(P,FX,PR),
     P=<PP},
   sql_expression(PR,L,Ta), 
-  {NL=..[OP,L]},
+  {NL=..[POP,L]},
   r_sql_expression(PP,P,NL/Lo,T/To).
   
 r_sql_expression(PP,Pi,Li/Lo,Ti/To) -->
   [op(OP):_],
-  {operator(P,YFX,[T,Ti,RT],_,OP),
+  {operator(P,YFX,[T,Ti,RT],POP,OP),
     infix(P,YFX,PL,PR),
     P=<PP,
     Pi=<PL
   },
   sql_expression(PR,L,RT), 
-  {NL=..[OP,Li,L]}, 
+  {NL=..[POP,Li,L]}, 
   r_sql_expression(PP,P,NL/Lo,T/To).
 r_sql_expression(_,_,Li/Li,Ti/Ti) -->
   [].
 
-operator(P,A,Ts,_,OP) :-
+operator(P,A,Ts,POP,OP) :-
+  my_infix_operator(OP,_,POP,Ts,_,P,A).
+
+operator(P,A,Ts,OP,OP) :-
   my_operator(P,A,Ts,_,OP).
 
-operator(P,A,Ts,SOP,OP) :-
-  my_infix_operator(OP,SOP,_,Ts,_,P,A).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SQL Expressions Factor
@@ -2187,10 +2212,10 @@ table_constraint(_) -->
 column_tuple(Ts) -->
   [punct('('):_],
   column_name_list(Ts),
-  punct(')')                          # 'comma or closing parenthesis '')'''.
+  [punct(')'):_].
 
 column_tuple([Ts]) -->
-  column_name(Ts)                     # 'a column name'.
+  column_name(Ts).
 
 column_name_list([C]) --> 
   untyped_column(C).
@@ -2288,12 +2313,7 @@ sql_user_identifier(Name) -->
   [fn(Name):_Pos].
 
 sql_user_identifier(Name) -->
-  [cmd(Name):_Pos],
-  { is_not_reserved(Name) }.
-
-is_not_reserved(Name) :-
-  \+ member(Name, [union, except, minus, intersect]).
-
+  [cmd(Name):_Pos].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Syntax check
@@ -2441,18 +2461,18 @@ optional_sign('none') -->
 % optional_cmd(-Cmd)//
 % Optional command
 optional_cmd(Cmd) -->
-  ([cmd(Cmd):_]
-   -> !
-   ;  []).
+  [cmd(Cmd):_].
+optional_cmd(_) -->
+  [].
 
-/*
+
 % optional_punct(-Punct)//
 % optional punct
-optional_punct(Punct, true) -->
+optional_punct(Punct) -->
   [punct(Punct):_].
-optional_punct(_Punct, false) -->
+optional_punct(_) -->
   [].
-*/
+
 
 optional_parentheses -->
   [punct('('):_],
@@ -2689,8 +2709,8 @@ test029 :-
     failure(error('Syntax', 'REFERENCES', pos(1, 47)))).
   
 test030 :-
-  test(parser, lex_parse, "create or replace table t(a int, b int, foreign key (a,b references s)",
-    failure(error('Syntax', 'comma or closing parenthesis '')''', pos(1, 58)))).
+  test(parser, lex_parse, "create or replace table t(a int, b int, foreign key (a,b) references s",
+    failure(error('Syntax', 'closing parenthesis '')''', pos(last, last)))).
 
 test031 :-
   test(parser, lex_parse, "create or replace table t(a int references s a)",
@@ -2718,7 +2738,7 @@ test036 :-
 
 test037 :-
   test(parser, lex_parse, "create table t like sa)",
-    failure(error('Syntax', 'opening parenthesis ''('' not found before', pos(void, void)))).
+    failure(error('Syntax', 'opening parenthesis ''('' not found before', pos(1, 23)))).
 
 test038 :-
   test(parser, lex_parse, "create view",
@@ -2790,7 +2810,7 @@ test048 :-
 
 test049 :-
   test(parser, lex_parse, "alter table t1 add constraint primary key(a), primary key(a)",
-    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 45)))).
+    failure(error('Syntax', 'end of statement', pos(1, 45)))).
 
 test050 :-
   test(parser, lex_parse, "alter table t alter column a1 set data type varchar(10)",
@@ -2830,7 +2850,7 @@ test058 :-
 
 test059 :-
   test(parser, lex_parse, "rename table t to s(a)",
-    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 20)))).
+    failure(error('Syntax', 'end of statement', pos(1, 20)))).
 
 test060 :-
   test(parser, lex_parse, "alter table t1 alter a1 set data type number()",
@@ -3253,11 +3273,11 @@ test122 :-
     (select(all,top(all),no_offset,[expr(hour(cte(time(22,5,31),datetime(time))),_,number(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(length(cte(a,string(_)))+length(cte(b,string(_))),_,number(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(concat(cte(a,string(_)),cte(b,string(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr('||'(cte(a,string(_)),cte(b,string(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(concat(cte(a,string(_)),cte(b,string(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(a,string(_))+cte(b,string(_)),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cast(cte('1',string(_)),number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cast(month(cte(date(2017,2,1),datetime(date))),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(cte(date(2017,2,1),datetime(date))-cte(date(2016,2,1),datetime(date)),_,number(integer))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(datetime_sub(cte(date(2017,2,1),datetime(date)),cte(date(2016,2,1),datetime(date))),_,number(integer))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,current_time,_)-attr(_,current_time,_),_,number(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(iif(count>cte(0,number(_)),cte(ok,string(_)),cte(error,string(_))),_,_)],[],from([(except(distinct,(select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(s,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(case([(cte(1,number(_))=cte(1,number(_)),cte(a,string(_)))],cte(b,string(D))),_,string(D))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),

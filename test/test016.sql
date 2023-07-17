@@ -15,19 +15,19 @@ DROP and CompleteSchema := DQLstmt STATEMENTS
 
 
 
-drop table t
-drop view v
+drop table t;
+drop view v;
 
-drop table if exists t
-drop table t cascade 
-drop table t cascade constraints
-drop view if exists v
-drop view cascade v
-drop view v if exists
+drop table if exists t;
+drop table t cascade;
+drop table t cascade constraints;
+drop view if exists v;
+drop view cascade v;
+drop view v if exists;
 
-drop database
-drop database db
-drop database $des
+drop database;
+drop database db;
+drop database $des;
 
 my_view(age int) := SELECT age FROM my_table;
 

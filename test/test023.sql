@@ -11,13 +11,13 @@
 %   |
 %   DESCRIBE [TableName|ViewName]*/
 
-show tables
+show tables;
 
-show views
+show views;
 
-SHOW DATABASES
+SHOW DATABASES;
 
-DESCRIBE t
+DESCRIBE t;
 
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    ISL STATEMENTS ERROR , column

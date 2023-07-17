@@ -24,31 +24,31 @@ SELECT(I) STATEMENTS
 %    [FETCH FIRST IntegerExpression ROWS ONLY]]*/
 
 
-select * from t
-select person.age from t 
+select * from t;
+select person.age from t;
 
-select distinct * from t
-select distinct top 1 * from t
-select top 1 * from t
-select top 1 distinct * from t
+select distinct * from t;
+select distinct top 1 * from t;
+select top 1 * from t;
+select top 1 distinct * from t;
 
-SELECT 1 INTO v from t
-select age into v from t
-select a from (select a from t)
+SELECT 1 INTO v from t;
+select age into v from t;
+select a from (select a from t);
 
-SELECT * FROM t WHERE a=$v$
+SELECT * FROM t WHERE a=$v$;
 
-select * from t group by "1"
-select count(*) from t group by a
+select * from t group by "1";
+select count(*) from t group by a;
 
-select a from taras group by a having sum(b)=1
-SELECT Department FROM employee GROUP BY Department HAVING COUNT(Salary)>1
-select 1 from t having age <= all (select a from s)
+select a from taras group by a having sum(b)=1;
+SELECT Department FROM employee GROUP BY Department HAVING COUNT(Salary)>1;
+select 1 from t having age <= all (select a from s);
 
 
 SELECT Nombre, Calle, "Codigo postal"
-FROM Empleados NATURAL INNER JOIN Domicilios 
-ORDER BY "Codigo postal", Nombre
+FROM Empleados NATURAL INNER JOIN Domicilios
+ORDER BY "Codigo postal", Nombre;
 
 
 select n from n offset 10 limit 10;

@@ -39,7 +39,8 @@
             reset_error/0,
             process_error/0,
             error/3,
-            set_error_with_parameter/4 ]).
+            set_error_with_parameter/4,
+            set_error_no_fail/4 ]).
 
 :- use_module(misc,
           [ current_position/3]).
@@ -138,3 +139,7 @@ set_error_with_parameter(Class, ErrorStr, Parameter, Position) :-
   set_error(Class, Error, Position),
   !, 
   fail.
+
+set_error_no_fail(Class, Error) -->
+  current_position(Position),
+  {set_error(Class, Error, Position)}.
