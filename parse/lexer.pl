@@ -58,13 +58,17 @@ edcg:pred_info(get_pos,  1, [position]).
 % - Commands:
 %     cmd(Command)
 % - Functions
-%     fn(Function/Arity)
+%     fn(Function)
+% - Commands and Functions
+%     cmd_fn(Function/Arity)
 % - Operators (symbolic and textual):
 %     op(Operator)
 %     comparisonOp(Operator)
-% - Punctuation: ( ) , ; : "
+% - Punctuation: ( ) , ; : "...
 % - (User) Identifiers:
-%     id(Identifier). For numbers and strings
+%     id(Identifier).
+% - (User) Quoted Identifiers:
+%     quoted_id(Identifier).
 
 lex(Input) :-
   reset_error,
@@ -336,7 +340,8 @@ textual_operator('not') -->> lc("not"), not_more_char,  !, add_col(3).
 textual_operator('xor') -->> lc("xor"), not_more_char,  !, add_col(3).
 textual_operator('rem') -->> lc("rem"), not_more_char,  !, add_col(3).
 textual_operator('div') -->> lc("div"), not_more_char,  !, add_col(3).
-textual_operator('mod') -->> lc("mod"), not_more_char,  !, add_col(3).
+%mod trantando como fn
+%textual_operator('mod') -->> lc("mod"), not_more_char,  !, add_col(3).
 
 %punctuation quotes simple is in last line
 punctuation('(') -->> "(",   !, inc_col.

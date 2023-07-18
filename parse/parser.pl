@@ -24,7 +24,6 @@
 
 :- use_module(des).  
 
-
 % This SWI-Prolog flag makes strings delimited by double
 % quotes to represent lists of character codes:
 :- set_prolog_flag(double_quotes, codes).
@@ -72,6 +71,7 @@ lex_parse(Input) :-
   split_statements(FilteredTokens, [punct(';'):_], StatementLists),
   maplist(parse, StatementLists, SyntaxTrees),
   flatten(SyntaxTrees, FlatSyntaxTrees),
+  %print(FlatSyntaxTrees).
   forall(member(Tree, FlatSyntaxTrees), pretty_print(Tree)).
 
 
@@ -89,6 +89,7 @@ split_statements([X|Xs], Sep, [[X|Y]|Ys]) :- split_statements(Xs, Sep, [Y|Ys]).
 
 
 parse([], SyntaxTrees) :-
+  reset_error,
   SyntaxTrees = [],
   !.
 
@@ -108,7 +109,9 @@ statement(STs) -->
   {statement_type(Stmt)},
   call(Stmt, STs),
   optional_punct(';'),
-  ([] ; [punct(')'):Pos], {set_error_with_parameter('Syntax', 'opening parenthesis ''('' not found before', [], Pos)}).
+  ([] ; [punct(')'):Pos], {set_error_with_parameter('Syntax', 'opening parenthesis ''('' not found before', [], Pos)}
+      ; [punct(']'):Pos], {set_error_with_parameter('Syntax', 'opening bracket ''['' not found before', [], Pos)}
+      ; [punct('`'):Pos], {set_error_with_parameter('Syntax', 'back quotes ''`'' not found before', [], Pos)}).
 
 statement(_) -->
   set_error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)').
@@ -118,7 +121,6 @@ statement_type(dmlStmt).
 statement_type(ddlStmt).
 statement_type(islStmt).
 statement_type(tmlStmt).
-
 
 % Base case: Empty list.
 filter_tokens([], []) --> 
@@ -142,8 +144,6 @@ pretty_print(Term) :-
   copy_term_nat(Term, Copy),
   numbervars(Copy, 0, _, [functor_name('$VAR'), singletons(true)]),
   format("~p,\n", [Copy]).
-
-
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % % DDL (Data Definition Language) statements
@@ -1868,7 +1868,7 @@ sql_expression(PP,Lo,To) -->
   !, % WARNING
   r_sql_expression(PP,0,L/Lo,T/To).
 sql_expression(PP,Lo,To) -->
-  [op(OP):_],
+  ([op(OP):_]; [fn(mod):_], {OP = mod}),
   {operator(P,FX,[T,Ta],POP,OP),
     prefix(P,FX,PR),
     P=<PP},
@@ -1877,7 +1877,7 @@ sql_expression(PP,Lo,To) -->
   r_sql_expression(PP,P,NL/Lo,T/To).
   
 r_sql_expression(PP,Pi,Li/Lo,Ti/To) -->
-  [op(OP):_],
+  ([op(OP):_]; [fn(mod):_], {OP = mod}),
   {operator(P,YFX,[T,Ti,RT],POP,OP),
     infix(P,YFX,PL,PR),
     P=<PP,
@@ -3350,7 +3350,7 @@ test134 :-
     failure(error('Syntax', 'END', pos(last, last)))).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MORE DQLstmt SELECT JOINS STATEMENTS
+% MORE DQLstmt and SELECT JOINS STATEMENTS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 test135 :-
@@ -3372,3 +3372,12 @@ test137 :-
     [(select(all,top(all),no_offset,*,[],from([(inner_join((full_join((t,_),(s,_),true),_),(u,_),true),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,c,_),_,_)],[],from([(select(all,top(all),no_offset,[expr(attr(_,a,_),c,_)],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),[v|_])]),where(attr(v,c,_)=cte(1,number(_))),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(left_join((full_join((t,_),(s,_),equijoin(natural)),_),(u,_),or(cte(10,number(_))*attr(s,c,_)=attr(u,b,_),cte(100,number(_))*attr(t,b,_)=attr(u,b,_))),_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
+
+test138 :-
+  test(parser, lex_parse, 'test/test029.sql', 
+    [create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[as|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_)),
+    insert_into(emp,[],[[cte('987',string(_)),cte(2500,number(_)),cte('987',string(_))],[cte('456',string(_)),cte(2000,number(_)),cte('456',string(_))],[cte('123',string(_)),cte(1000,number(_)),cte('456',string(_))],[cte('235',string(_)),cte(1000,number(_)),cte('987',string(_))],[cte('567',string(_)),cte(800,number(_)),cte('123',string(_))],[cte('678',string(_)),cte(600,number(_)),cte('567',string(_))],[cte('789',string(_)),cte(500,number(_)),cte('678',string(_))]]),
+    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)div cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)mod cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)rem cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
+    create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[mod|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_))]).
