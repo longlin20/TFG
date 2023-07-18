@@ -512,9 +512,8 @@ function('sum_distinct')          -->> lc("sum_distinct"),             not_more_
 function('times')                 -->> lc("times"),                    not_more_char, !, add_col(5).
 function('times_distinct')        -->> lc("times_distinct"),           not_more_char, !, add_col(14).
 
-%id o id_lc_start
-%function('pi')                    -->> lc("pi"),                       not_more_char, !, add_col(2).
-%function('e')                     -->> lc("e"),                        not_more_char, !, add_col(1).
+function('pi')                    -->> lc("pi"),                       not_more_char, !, add_col(2).
+function('e')                     -->> lc("e"),                        not_more_char, !, add_col(1).
 
 function('length')                -->> lc("length"),                   not_more_char, !, add_col(6).
 function('concat')                -->> lc("concat"),                   not_more_char, !, add_col(6).

@@ -1,7 +1,6 @@
 :- module(parser,
           [ lex_parse/2,
-            lex_parse/1, 
-            parse/2]).
+            lex_parse/1]).
 
 :- use_module(misc).
 
@@ -58,6 +57,13 @@ lex_parse(Input, SyntaxTrees) :-
   parse(FilteredTokens, SyntaxTrees).
 */
 
+measure_execution_time(Goal) :-
+  statistics(walltime, [Start|_]),
+  Goal,
+  statistics(walltime, [End|_]),
+  Time is End - Start,
+  format('Execution took ~3d ms.~n', [Time]).
+
 
 lex_parse(Input) :-
   lex(Input, Tokens),
@@ -67,6 +73,7 @@ lex_parse(Input) :-
   maplist(parse, StatementLists, SyntaxTrees),
   flatten(SyntaxTrees, FlatSyntaxTrees),
   forall(member(Tree, FlatSyntaxTrees), pretty_print(Tree)).
+
 
 lex_parse(Input, FlatSyntaxTrees) :-
   lex(Input, Tokens),
@@ -101,9 +108,7 @@ statement(STs) -->
   {statement_type(Stmt)},
   call(Stmt, STs),
   optional_punct(';'),
-  ([] ; [punct(')'):Pos], {set_error_with_parameter('Syntax', 'opening parenthesis ''('' not found before', [], Pos)} ;
-        [punct(','):Pos], {set_error_with_parameter('Syntax', 'end of statement', [], Pos)} ;
-        [punct('('):Pos], {set_error_with_parameter('Syntax', 'end of statement', [], Pos)}).
+  ([] ; [punct(')'):Pos], {set_error_with_parameter('Syntax', 'opening parenthesis ''('' not found before', [], Pos)}).
 
 statement(_) -->
   set_error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)').
@@ -181,8 +186,8 @@ ddlStmt([CRTSchema|STs]/STs) -->
   complete_constrained_typed_schema(Schema,Ctrs) # 'opening parenthesis ''('' or LIKE or AS',
   % syntax_check_redef(Schema), % If attempting to redefine a datalog keyword, exception is thrown.
   {atom_concat(CR,'_table',CRT),
-  CRTSchema=..[CRT,Schema,Ctrs]}.
-  %!.
+  CRTSchema=..[CRT,Schema,Ctrs]},
+  set_error_no_fail('Syntax', 'end of statement').
 
 % CREATE TABLE AS
 ddlStmt([CRTSchema|STs]/STs) -->
@@ -196,8 +201,8 @@ ddlStmt([CRTSchema|STs]/STs) -->
   dqlStmt([(LSQLst,Schema)|STs]/STs)  # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',  
   closing_parentheses_star(N),
   {atom_concat(CR,'_table_as',CRT),
-   CRTSchema=..[CRT,(LSQLst,_AS),Schema]}.
-  %!.
+   CRTSchema=..[CRT,(LSQLst,_AS),Schema]},
+   set_error_no_fail('Syntax', 'end of statement').
 
 % CREATE TABLE LIKE
 ddlStmt([CRTSchema|STs]/STs) -->
@@ -210,8 +215,8 @@ ddlStmt([CRTSchema|STs]/STs) -->
   tablename(ExistingTableName)         # 'table name',
   closing_parentheses_star(N),
   {atom_concat(CR,'_table_like',CRT),
-   CRTSchema=..[CRT,TableName,ExistingTableName]}.
-  %!.
+   CRTSchema=..[CRT,TableName,ExistingTableName]},
+   set_error_no_fail('Syntax', 'end of statement').
 
 % CREATE VIEW
 ddlStmt([CRVSchema|STs]/STs) -->
@@ -224,28 +229,27 @@ ddlStmt([CRVSchema|STs]/STs) -->
   dqlStmt([(LSQLst,Schema)|STs]/STs)  # 'valid SQL DQL statement (SELECT, WITH or ASSUME)',
   closing_parentheses_star(N),
   {atom_concat(CR,'_view',CRVF),
-   CRVSchema =.. [CRVF,sql,(LSQLst,_AS),Schema]}.
-  %!.
+   CRVSchema =.. [CRVF,sql,(LSQLst,_AS),Schema]},
+  set_error_no_fail('Syntax', 'end of statement').
 
 % CREATE DATABASE
 ddlStmt([create_database(DBName)|STs]/STs) -->
   [cmd(create):_],
-  cmd(database)                       # 'OR REPLACE or TABLE or VIEW or DATABASE',
-  optional_database_name(DBName)      # 'database name'.
-  %!.
+  cmd(database)                       # 'TABLE or VIEW or OR REPLACE or DATABASE',
+  optional_database_name(DBName)      # 'database name',
+  set_error_no_fail('Syntax', 'end of statement').
 
 % ALTER TABLE
 ddlStmt([alter_table(TableName,AD,Element)|STs]/STs) -->
   [cmd(alter):_],
-  !,         
   cmd(table)                          # 'TABLE after ALTER',
   current_position(Position),
   tablename(TableName)                # 'table identifier',
   alter_table_alter_column(AD,TableName,Element),
   { exist_table(TableName) -> true; 
     set_error_with_parameter('Semantic', 'Unknown table ~w', [TableName], Position)
-  }.
-  %!.
+  },
+  set_error_no_fail('Syntax', 'end of statement').
 
 % RENAME TABLE
 ddlStmt([rename_table(TableName,NewTableName)|STs]/STs) -->
@@ -253,9 +257,9 @@ ddlStmt([rename_table(TableName,NewTableName)|STs]/STs) -->
   cmd(table)                          # 'TABLE or VIEW',
   tablename(TableName)                # 'table name',
   cmd(to)                             # 'TO',
-  tablename(NewTableName)             # 'table name'.
+  tablename(NewTableName)             # 'table name',
   % syntax_check_redef(NewTableName),  % If attempting to redefine a datalog keyword, exception is thrown.
-  %!.
+  set_error_no_fail('Syntax', 'end of statement').
 
 % RENAME VIEW
 ddlStmt([rename_view(Viewname,NewViewname)|STs]/STs) -->
@@ -263,9 +267,9 @@ ddlStmt([rename_view(Viewname,NewViewname)|STs]/STs) -->
   cmd(view)                           # 'TABLE or VIEW',
   viewname(Viewname)                  # 'view identifier',
   cmd(to)                             # 'TO',
-  viewname(NewViewname)               # 'view identifier'.
+  viewname(NewViewname)               # 'view identifier',
   % syntax_check_redef(NewViewname),  % If attempting to redefine a datalog keyword, exception is thrown.
-  %!.
+  set_error_no_fail('Syntax', 'end of statement').
 
 % DROP TABLE
 ddlStmt([drop_table(Name,Clauses)|STs]/STs) -->
@@ -274,8 +278,8 @@ ddlStmt([drop_table(Name,Clauses)|STs]/STs) -->
   optional_drop_clauses(table,Clauses1),
   tablename(Name)                     # 'table name or optional drop table clauses(IF EXISTS, CASCADE or CASCADE CONSTRAINTS)',
   optional_drop_clauses(table,Clauses2),
-  {append(Clauses1,Clauses2,Clauses)}.
-  %!.
+  {append(Clauses1,Clauses2,Clauses)},
+  set_error_no_fail('Syntax', 'end of statement').
 
 % DROP VIEW
 ddlStmt([drop_view(Name,Clauses)|STs]/STs) -->
@@ -286,14 +290,13 @@ ddlStmt([drop_view(Name,Clauses)|STs]/STs) -->
   optional_drop_clauses(view,Clauses2),
   {append(Clauses1,Clauses2,Clauses)},
   set_error_no_fail('Syntax', 'end of statement').
-  %!.
 
 % DROP SCHEMA
 ddlStmt([drop_database(DBName)|STs]/STs) -->
   [cmd(drop):_],
   cmd(database)                       # 'TABLE or VIEW or DATABASE',
-  optional_database_name(DBName).
-  %!.
+  optional_database_name(DBName),
+  set_error_no_fail('Syntax', 'end of statement').
 
 % HR-SQL CREATE VIEW syntax
 ddlStmt([CRVSchema|STs]/STs) -->
@@ -303,9 +306,8 @@ ddlStmt([CRVSchema|STs]/STs) -->
   comparisonOp('=')                   # 'equals ''=''', 
   dqlStmt([(SQLst,Schema)|STs]/STs)   # 'select statement',
   %{CRVSchema = create_or_replace_view(hrsql,(SQLst,_AS),Schema)}, 
-  { CRVSchema =.. [create_or_replace_view,hrsql,(SQLst,_AS),Schema]}.
-  %!.
-
+  { CRVSchema =.. [create_or_replace_view,hrsql,(SQLst,_AS),Schema]},
+  set_error_no_fail('Syntax', 'end of statement').
 
 % CREATE, CREATE OR REPLACE
 create_or_replace(create_or_replace) -->
@@ -441,7 +443,8 @@ optional_database_name('$des') -->
 % Parsing alter_table_alter_column options
 alter_table_alter_column(AD,_TableName,Element) -->
   add_or_drop(AD)                     # 'ADD or DROP or ALTER',
-  add_drop_table_element(AD,Element)  # 'COLUMN or CONSTRAINT'.
+  add_drop_table_element(AD,Element)  # 'COLUMN or CONSTRAINT',
+  set_error_no_fail('Syntax', 'end of statement').
   %!.
 alter_table_alter_column(alter,TableName,Element) -->
   cmd(alter)                          # 'ALTER, ADD or DROP',
@@ -453,7 +456,8 @@ alter_table_alter_column(alter,TableName,Element) -->
     exist_att(ConnectionName,TableName,TableName,Column)) 
     -> true; 
       set_error_with_parameter('Semantic', 'unknown_column(~w, ~w)', [TableName, Column], Position))
-  }.
+  },
+  set_error_no_fail('Syntax', 'end of statement').
 
 add_or_drop(add) -->
   [cmd(add):_].
@@ -608,7 +612,8 @@ ub_DQL([(with(SQLst,SQLsts),_AS)|STs]/STs) -->
   [cmd(assume):_],
   !,
   assume_list(SQLsts)                 # 'list of assumptions',
-  dqlStmt([SQLst|STs]/STs)            # 'SELECT statement'.
+  dqlStmt([SQLst|STs]/STs)            # 'SELECT statement',
+  set_error_no_fail('Syntax', 'end of ASSUME statement').
  % {allowed_with_schemas(SQLsts)},
  % !.
 % WITH
@@ -616,57 +621,59 @@ ub_DQL([(with(SQLst,SQLsts),_AS)|STs]/STs) -->
   [cmd(with):_],
   !,
   local_view_definition_list(SQLsts)  # 'list of temporary view definitions',
-  dqlStmt([SQLst|STs]/STs)            # 'SELECT statement'.
+  dqlStmt([SQLst|STs]/STs)            # 'SELECT statement',
+  set_error_no_fail('Syntax', 'end of WITH statement').
  % {allowed_with_schemas(SQLsts)},
   %!.
 % SELECT
 ub_DQL([STs1|STs]/STs) --> 
   select_DQL([STs1|STs]/STs).
+  %set_error_no_fail('Syntax', 'end of SELECT statement').
 % UNION
 ub_DQL([(union(D,R1,R2),_AS)|STs]/STs) -->
   b_DQL([R1|STs]/STs),
   union_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'SELECT statement',
-  closing_parentheses_star(N).
-  %!.
+  closing_parentheses_star(N),
+  set_error_no_fail('Syntax', 'end of UNION statement').
 ub_DQL([(union(D,R1,R2),_AS)|STs]/STs) -->
   select_DQL([R1|STs]/STs),
   union_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'SELECT statement',
-  closing_parentheses_star(N).
-  %!.
+  closing_parentheses_star(N),
+  set_error_no_fail('Syntax', 'end of UNION statement').
 % EXCEPT
 ub_DQL([(except(D,R1,R2),_AS)|STs]/STs) -->
   b_DQL([R1|STs]/STs),
   except_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'SELECT statement',
-  closing_parentheses_star(N).
-  %!.
+  closing_parentheses_star(N),
+  set_error_no_fail('Syntax', 'end of EXCEPT/MINUS statement').
 ub_DQL([(except(D,R1,R2),_AS)|STs]/STs) -->
   select_DQL([R1|STs]/STs),
   except_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'SELECT statement',
-  closing_parentheses_star(N).
-  %!.
+  closing_parentheses_star(N),
+  set_error_no_fail('Syntax', 'end of EXCEPT/MINUS statement').
 % INTERSECT
 ub_DQL([(intersect(D,R1,R2),_AS)|STs]/STs) -->
   b_DQL([R1|STs]/STs),
   intersect_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'SELECT statement',
-  closing_parentheses_star(N).
-  %!.
+  closing_parentheses_star(N),
+  set_error_no_fail('Syntax', 'end of INTERSECT statement').
 ub_DQL([(intersect(D,R1,R2),_AS)|STs]/STs) -->
   select_DQL([R1|STs]/STs),
   intersect_stmt(D),
   opening_parentheses_star(N),
   dqlStmt([R2|STs]/STs)               # 'SELECT statement',
-  closing_parentheses_star(N).
-  %!.
+  closing_parentheses_star(N),
+  set_error_no_fail('Syntax', 'end of INTERSECT statement').
 
 % Atoms and clauses assumed in ASSUME
 assume_list([V]) -->
@@ -753,10 +760,10 @@ select_DQL([(select(DistinctAll,TopN,Offset,ProjList,TargetList,
   select_stmt(DistinctAll,TopN),
   projection_list(ProjList),
   target_clause(TargetList),
-  cmd(from)                           # 'FROM clause',
+  cmd(from)                           # 'a valid FROM clause',
   {!}, % 23-01-2021
   opening_parentheses_star(N),
-  relations(Relations)                # 'a valid relation',
+  relations(Relations)                # 'a valid FROM clause',
   where_clause_with_cut(WhereCondition),
   group_by_clause(GroupList),
   having_clause(HavingCondition),
@@ -765,7 +772,7 @@ select_DQL([(select(DistinctAll,TopN,Offset,ProjList,TargetList,
   optional_fetch_first(TopN),
   closing_parentheses_star(N),
   {set_topN_default(TopN)}.
-  %!.
+  %set_error_no_fail('Syntax', 'BY or comma or end of SELECT statement').
 
 % FROM-less SELECT
 select_DQL([(select(DistinctAll,TopN,no_offset,ProjList,TargetList,
@@ -778,7 +785,7 @@ select_DQL([(select(DistinctAll,TopN,no_offset,ProjList,TargetList,
   projection_list(ProjList),
   {set_topN_default(TopN)},
   target_clause(TargetList).
-  %!.
+  %set_error_no_fail('Syntax', 'end of SELECT statement').
 
 select_stmt(DistinctAll,TopN) -->
   [cmd(select):_],                    %# 'SELECT'.
@@ -1040,7 +1047,7 @@ where_condition(C) -->
 
 group_by_clause(GroupList) -->
   [cmd(group):_],
-  cmd(by)                             # 'BY',
+  cmd(by)                             # 'BY or comma or end of SELECT statement',
   opening_parentheses_star(N),
   {!}, % 23-01-2021
   sql_proj_expression_sequence(GroupList),
@@ -1062,7 +1069,7 @@ sql_having_condition(C) -->
 
 order_by_clause(OrderArgs,OrderSpecs) -->
   [cmd(order):_],
-  cmd(by)                             # 'BY',
+  cmd(by)                             # 'BY or comma or end of SELECT statement',
   opening_parentheses_star(N),
   {!}, % 23-01-2021
   order_list(OrderArgs,OrderSpecs)    # 'valid ORDER BY criteria',
@@ -1158,8 +1165,8 @@ dmlStmt([insert_into(TableName,Colnames,Vs)|STs]/STs) -->
   {my_remove_duplicates(Colnames,Colnames) -> true ;
   set_error_with_parameter('Semantic', 'Column names must be different in ~w' , [Colnames], Position)},
   {length(Colnames,L)},
-  insert_values_sql(L,Vs)             # 'VALUES, select statement, or DEFAULT VALUES'.
-  %!.
+  insert_values_sql(L,Vs)             # 'VALUES, select statement, or DEFAULT VALUES',
+  set_error_no_fail('Syntax', 'end of statement').
 
 % INSERT INTO Table [VALUES(...) | selectStm]
 dmlStmt([insert_into(TableName,Colnames,Vs)|STs]/STs) -->
@@ -1168,16 +1175,17 @@ dmlStmt([insert_into(TableName,Colnames,Vs)|STs]/STs) -->
   tablename(TableName)                # 'table name',
   {(get_relation_arity(TableName,L) -> true ; true)},
   insert_values_sql(L, Vs)            # 'VALUES, select statement, or DEFAULT VALUES',
-  {get_table_untyped_arguments(TableName,Colnames)}.
-  %!.
+  {get_table_untyped_arguments(TableName,Colnames)},
+  set_error_no_fail('Syntax', 'end of statement').
+
 
 % DELETE FROM ... WHERE 
 dmlStmt([delete_from(Table,WhereCondition)|STs]/STs) -->
   [cmd(delete):_],
   cmd(from)                           # 'FROM',
   p_ren_tablename(Table)              # 'table name',
-  where_clause(WhereCondition).
-  %!.
+  where_clause(WhereCondition),
+  set_error_no_fail('Syntax', 'end of statement').
 
 % UPDATE ... SET ... [WHERE ]
 dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
@@ -1185,13 +1193,13 @@ dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
   p_ren_tablename(Table)              # 'table name',
   cmd(set)                            # 'SET',
   update_assignments(Assignments)     # 'sequence of column assignments Col=Expr',
-  where_clause(WhereCondition).
-  %!.
+  where_clause(WhereCondition),
+  set_error_no_fail('Syntax', 'end of statement').
 
 dmlStmt([update(_Table,_Assignments,_Condition)|STs]/STs) -->
   [cmd(update):_],
   [cmd(table):_],
-  set_error('Syntax', 'TABLE is not allowed after UPDATE').
+  set_error('Syntax', ' a different word after UPDATE; TABLE is not allowed').
 
 %insert_values_sql(Arity, Values)
 insert_values_sql(L,[Vs]) -->
@@ -1979,25 +1987,28 @@ sql_factor(case(Expr,ExprValList,Default),Type) -->
   sql_case_else_end(Default,Type).
 sql_factor(cte(C,T),T) -->
   sql_constant(cte(C,T)).
-sql_factor(C,_) -->
-  column(C).
 sql_factor(F,T) --> 
   fn_identifier(SF),
   {function(SF,F,_,Type,[T],0),
     Type\==aggregate % 0-arity aggregate functions from Datalog are not allowed in SQL
     },
   optional_parentheses.
+sql_factor(C,_) -->
+  column(C).
+
+
 
 %sql_factor(_,_) -->
 %  set_error('Syntax', 'valid SQL factor').
 fn_identifier(SF) -->
   [fn(SF):_];
-  [cmd_fn(SF):_];
+  [cmd_fn(SF):_].
+/*
   [id(e):_], {SF = e};
   [id_lc_start(e):_], {SF = e};
   [id(pi):_], {SF = pi};
   [id_lc_start(pi):_], {SF = pi}.
-
+*/
 sql_function_arguments(1,[E],[T]) -->
   {dif(T,type(_))},
   current_position(Position),
@@ -2634,7 +2645,7 @@ test010 :-
 
 test011 :-
   test(parser, lex_parse, "create replace table t(a int);",
-    failure(error('Syntax', 'OR REPLACE or TABLE or VIEW or DATABASE', pos(1, 8)))).
+    failure(error('Syntax', 'TABLE or VIEW or OR REPLACE or DATABASE', pos(1, 8)))).
 
 test012 :-
   test(parser, lex_parse, "create or replace able t(a int);",
@@ -2897,7 +2908,7 @@ test065 :-
 
 test066 :-
   test(parser, lex_parse, "drop view v exist",
-    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 13)))).
+    failure(error('Syntax', 'end of statement', pos(1, 13)))).
 
 test067 :-
   test(parser, lex_parse, "my_view(age it) := SELECT age FROM my_table",
@@ -2958,11 +2969,11 @@ test074 :-
 
 test075 :-
   test(parser, lex_parse, "select person from t group yb a",
-    failure(error('Syntax', 'BY', pos(1, 28)))).  
+    failure(error('Syntax', 'BY or comma or end of SELECT statement', pos(1, 28)))).  
 
 test076 :-
   test(parser, lex_parse, "SELECT N FROM E ORDER Yb N",
-    failure(error('Syntax', 'BY', pos(1, 23)))).
+    failure(error('Syntax', 'BY or comma or end of SELECT statement', pos(1, 23)))).
 
 test077 :-
   test(parser, lex_parse, "SELECT * FROM t WHERE where",
@@ -3013,15 +3024,15 @@ test082 :-
 
 test083 :-
   test(parser, lex_parse, "select * from 1 right join t2",
-    failure(error('Syntax', 'a valid relation', pos(1, 15)))).  
+    failure(error('Syntax', 'a valid FROM clause', pos(1, 15)))).  
 
 test084 :-
   test(parser, lex_parse, "select * from t1 t s join t2",
-    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 20)))).
+    failure(error('Syntax', 'a valid FROM clause', pos(1, 15)))).
 
 test085 :-
   test(parser, lex_parse, "select * from t1 1 join t2",
-    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 18)))).
+    failure(error('Syntax', 'a valid FROM clause', pos(1, 15)))).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DQLstmt UNION, EXCEPT, MINUS, INTERSECT STATEMENTS
@@ -3267,24 +3278,24 @@ test122 :-
     [(select(all,top(all),no_offset,[expr(cte(ok,string(A)),_,string(A))],[],from([(dual,_)]),where('$like'(cte(asdf,string(varchar)),cte('%',string(varchar)))),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(ok,string(B)),_,string(B))],[],from([(dual,_)]),where('$like'(cte(asdf,string(varchar)),cte(as__,string(varchar)))),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(ok,string(C)),_,string(C))],[],from([(dual,_)]),where('$like'(cte(as_df,string(varchar)),cte('%_%',string(varchar)),cte('_',string(varchar)))),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(substr('||'(lower(cte('A',string(_))),upper(cte(b,string(_)))),cte(1,number(_)),cte(2,number(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(substr(concat(lower(cte('A',string(_))),upper(cte(b,string(_)))),cte(1,number(_)),cte(2,number(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cast(cte('1',string(_)),number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cast(month(cte(date(2017,2,1),datetime(date))),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(hour(cte(time(22,5,31),datetime(time))),_,number(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(length(cte(a,string(_)))+length(cte(b,string(_))),_,number(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(concat(cte(a,string(_)),cte(b,string(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(concat(cte(a,string(_)),cte(b,string(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(cte(a,string(_))+cte(b,string(_)),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(concat(cte(a,string(_)),cte(b,string(_))),_,string(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cast(cte('1',string(_)),number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cast(month(cte(date(2017,2,1),datetime(date))),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(datetime_sub(cte(date(2017,2,1),datetime(date)),cte(date(2016,2,1),datetime(date))),_,number(integer))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(attr(_,current_time,_)-attr(_,current_time,_),_,number(_))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(datetime_sub(current_time,attr(_,current_time,_)),_,datetime(time))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(iif(count>cte(0,number(_)),cte(ok,string(_)),cte(error,string(_))),_,_)],[],from([(except(distinct,(select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(s,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(case([(cte(1,number(_))=cte(1,number(_)),cte(a,string(_)))],cte(b,string(D))),_,string(D))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(case(cte(1,number(_)),[(cte(1,number(_)),cte(a,string(_)))],cte(b,string(E))),_,string(E))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    create_or_replace_table(e(a:number(integer),b:number(float)),[true,default(b,attr(_,pi,_)/cte(2,number(_)),number(float))]),
-    (select(all,top(all),no_offset,[expr(cte(date(2017,2,1),datetime(date))-cte(1,number(integer)),_,datetime(date))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(cast(cte(datetime(1,1,1,0,0,0),datetime(datetime))-cte(1,number(integer)),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
+    create_or_replace_table(e(a:number(integer),b:number(float)),[true,default(b,pi/cte(2,number(_)),number(float))]),
+    (select(all,top(all),no_offset,[expr(datetime_sub(cte(date(2017,2,1),datetime(date)),cte(1,number(integer))),_,datetime(date))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(cast(datetime_sub(cte(datetime(1,1,1,0,0,0),datetime(datetime)),cte(1,number(integer))),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Other cond_factor and sql_factor, etc.. error
@@ -3292,7 +3303,7 @@ test122 :-
 
 test123 :-
   test(parser, lex_parse, "select extract hour from time)",
-    failure(error('Syntax', 'opening parenthesis ''('' not found before', pos(void, void)))).
+    failure(error('Syntax', 'opening parenthesis ''('' not found before', pos(1, 30)))).
 
 test124 :-
   test(parser, lex_parse, "select extract(hur from time '22:05:31')",

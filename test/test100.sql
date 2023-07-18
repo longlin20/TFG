@@ -12,3 +12,5 @@ select * from a union select * from b;
 
 
 */
+
+select * from t1 t  join t1
