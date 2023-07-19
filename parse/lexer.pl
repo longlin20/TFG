@@ -231,7 +231,7 @@ token(fn(Function)) -->>
   function(Function),
   !.
   
-token(op(Operator)) -->>
+token(textual_op(Operator)) -->>
   textual_operator(Operator),
   !.
 
@@ -926,22 +926,22 @@ test013 :-
   test(lexer, lex, 'test/test006.sql', [cmd(select):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,69),cmd(from):pos(2,1),id_lc_start(tabla):pos(2,6)]).
 
 test014 :-
-  test(lexer, lex, 'test/test007.sql', [fn(times):pos(1,1),cmd(timestamp):pos(1,7),cmd(no):pos(1,17),op(not):pos(1,20),fn(sign):pos(1,24),id_lc_start(timesa):pos(1,29),id_lc_start(times1):pos(1,36),punct(nl):pos(1,42),fn(substr):pos(2,1),id_lc_start(substring):pos(2,8),punct(nl):pos(2,17)]).
+  test(lexer, lex, 'test/test007.sql', [fn(times):pos(1,1),cmd(timestamp):pos(1,7),cmd(no):pos(1,17),textual_op(not):pos(1,20),fn(sign):pos(1,24),id_lc_start(timesa):pos(1,29),id_lc_start(times1):pos(1,36),punct(nl):pos(1,42),fn(substr):pos(2,1),id_lc_start(substring):pos(2,8),punct(nl):pos(2,17)]).
 
 test015 :-
   test(lexer, lex, 'test/test008.sql', [comment('\nEste es un comentario\nh\nde varias lneas\n'):pos(1,1),punct(nl):pos(5,3),int(1):pos(6,1)]).
   
 test016 :-
-  test(lexer, lex, 'test/test009.sql', [cmd(alter):pos(1,1),cmd(table):pos(1,7),id_lc_start(a):pos(1,13),cmd(add):pos(1,15),cmd(constraint):pos(1,20),cmd(primary):pos(1,31),cmd(key):pos(1,39),punct('('):pos(1,43),id_lc_start(a):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter):pos(3,1),cmd(table):pos(3,7),id_lc_start(b):pos(3,13),cmd(drop):pos(3,15),cmd(constraint):pos(3,20),op(not):pos(3,31),cmd(null):pos(3,35),id_lc_start(b):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter):pos(5,1),cmd(table):pos(5,7),id_lc_start(d):pos(5,13),cmd(add):pos(5,15),cmd(constraint):pos(5,20),cmd(check):pos(5,31),punct('('):pos(5,37),id_lc_start(a):pos(5,38),comparisonOp(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
+  test(lexer, lex, 'test/test009.sql', [cmd(alter):pos(1,1),cmd(table):pos(1,7),id_lc_start(a):pos(1,13),cmd(add):pos(1,15),cmd(constraint):pos(1,20),cmd(primary):pos(1,31),cmd(key):pos(1,39),punct('('):pos(1,43),id_lc_start(a):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter):pos(3,1),cmd(table):pos(3,7),id_lc_start(b):pos(3,13),cmd(drop):pos(3,15),cmd(constraint):pos(3,20),textual_op(not):pos(3,31),cmd(null):pos(3,35),id_lc_start(b):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter):pos(5,1),cmd(table):pos(5,7),id_lc_start(d):pos(5,13),cmd(add):pos(5,15),cmd(constraint):pos(5,20),cmd(check):pos(5,31),punct('('):pos(5,37),id_lc_start(a):pos(5,38),comparisonOp(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
 
 test017 :-
   test(lexer, lex, 'test/test010.sql', [cmd(select):pos(1,1),op(*):pos(1,8),cmd(from):pos(1,10),id_lc_start(tabla):pos(1,15),cmd(where):pos(1,21),id_lc_start(nombre):pos(1,27),comparisonOp(=):pos(1,34),str('Juan Prez'):pos(1,36),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(select):pos(3,1),op(*):pos(3,8),cmd(from):pos(3,10),id(customers):pos(3,15),punct(nl):pos(3,24),cmd(where):pos(4,1),id(customername):pos(4,7),cmd(like):pos(4,20),str('a%'):pos(4,25),punct(;):pos(4,29),punct(nl):pos(4,30),punct(nl):pos(5,1),cmd(insert):pos(6,1),cmd(into):pos(6,8),id_lc_start(a):pos(6,13),cmd(values):pos(6,15),punct('('):pos(6,22),str(a1):pos(6,23),punct(')'):pos(6,27),punct(;):pos(6,28)]).
 
 test018 :-
-  test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select):pos(2,1),op(*):pos(2,8),cmd(from):pos(2,10),id_lc_start(t):pos(2,15),punct(','):pos(2,16),id_lc_start(s):pos(2,17),cmd(where):pos(2,19),id_lc_start(t):pos(2,25),punct('.'):pos(2,26),id_lc_start(a):pos(2,27),comparisonOp(=):pos(2,28),id_lc_start(s):pos(2,29),punct('.'):pos(2,30),id_lc_start(a):pos(2,31),op(and):pos(2,33),id_lc_start(t):pos(2,37),punct('.'):pos(2,38),id_lc_start(b):pos(2,39),comparisonOp(=):pos(2,40),id_lc_start(s):pos(2,41),punct('.'):pos(2,42),id_lc_start(b):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
+  test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select):pos(2,1),op(*):pos(2,8),cmd(from):pos(2,10),id_lc_start(t):pos(2,15),punct(','):pos(2,16),id_lc_start(s):pos(2,17),cmd(where):pos(2,19),id_lc_start(t):pos(2,25),punct('.'):pos(2,26),id_lc_start(a):pos(2,27),comparisonOp(=):pos(2,28),id_lc_start(s):pos(2,29),punct('.'):pos(2,30),id_lc_start(a):pos(2,31),textual_op(and):pos(2,33),id_lc_start(t):pos(2,37),punct('.'):pos(2,38),id_lc_start(b):pos(2,39),comparisonOp(=):pos(2,40),id_lc_start(s):pos(2,41),punct('.'):pos(2,42),id_lc_start(b):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
 
 test019 :-
-  test(lexer, lex, 'test/test012.sql', [cmd(create):pos(1,1),op(or):pos(1,8),cmd_fn(replace):pos(1,11),cmd(view):pos(1,19),id_lc_start(v1_1):pos(1,24),punct('('):pos(1,28),id_lc_start(a):pos(1,29),punct(')'):pos(1,30),cmd(as):pos(1,32),cmd(select):pos(1,35),id_lc_start(t1):pos(1,42),punct('.'):pos(1,44),id_lc_start(a):pos(1,45),cmd(from):pos(1,47),id_lc_start(v1_2):pos(1,52),id_lc_start(t1):pos(1,57),punct(','):pos(1,59),id_lc_start(v2_2):pos(1,60),id_lc_start(t2):pos(1,65),cmd(where):pos(1,68),id_lc_start(t1):pos(1,74),punct('.'):pos(1,76),id_lc_start(a):pos(1,77),comparisonOp(=):pos(1,78),id_lc_start(t2):pos(1,79),punct('.'):pos(1,81),id_lc_start(a):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert):pos(3,1),cmd(into):pos(3,8),id_lc_start(t):pos(3,13),cmd(values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
+  test(lexer, lex, 'test/test012.sql', [cmd(create):pos(1,1),textual_op(or):pos(1,8),cmd_fn(replace):pos(1,11),cmd(view):pos(1,19),id_lc_start(v1_1):pos(1,24),punct('('):pos(1,28),id_lc_start(a):pos(1,29),punct(')'):pos(1,30),cmd(as):pos(1,32),cmd(select):pos(1,35),id_lc_start(t1):pos(1,42),punct('.'):pos(1,44),id_lc_start(a):pos(1,45),cmd(from):pos(1,47),id_lc_start(v1_2):pos(1,52),id_lc_start(t1):pos(1,57),punct(','):pos(1,59),id_lc_start(v2_2):pos(1,60),id_lc_start(t2):pos(1,65),cmd(where):pos(1,68),id_lc_start(t1):pos(1,74),punct('.'):pos(1,76),id_lc_start(a):pos(1,77),comparisonOp(=):pos(1,78),id_lc_start(t2):pos(1,79),punct('.'):pos(1,81),id_lc_start(a):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert):pos(3,1),cmd(into):pos(3,8),id_lc_start(t):pos(3,13),cmd(values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
 
 test020 :-
   test(lexer, lex, "a1.2", [id_lc_start(a1):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      

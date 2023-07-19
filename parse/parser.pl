@@ -24,6 +24,7 @@
 
 :- use_module(des).  
 
+
 % This SWI-Prolog flag makes strings delimited by double
 % quotes to represent lists of character codes:
 :- set_prolog_flag(double_quotes, codes).
@@ -32,6 +33,8 @@
 %   the error message corresponding to the expected token.
 %   This error message includes the position
 :- op(995, xfy, #).
+
+:- op(900,fy,[not]).       % Stratified negation
 
 % parse(+Tokens, -SyntaxTree) is det
 % Main predicate of this module
@@ -312,7 +315,7 @@ ddlStmt([CRVSchema|STs]/STs) -->
 % CREATE, CREATE OR REPLACE
 create_or_replace(create_or_replace) -->
   [cmd(create):_],
-  [op(or):_],
+  [textual_op(or):_],
   ([cmd_fn(replace):_] -> {true} ; set_error('Syntax', 'REPLACE')).
 create_or_replace(create) -->
   [cmd(create):_].
@@ -687,13 +690,12 @@ assume([(SQLst,Schema)|STs]/STs) -->
   dqlStmt([(SQLst,Schema)|STs]/STs),
   [cmd(in):_],
   assume_schema(Schema).
-assume([not((SQLst,Schema))|STs]/STs) -->
+assume([(not(SQLst),Schema)|STs]/STs) -->
   assume_not_in([(SQLst,Schema)|STs]/STs).
   
 assume_not_in([(SQLst,Schema)|STs]/STs) -->
   dqlStmt([(SQLst,Schema)|STs]/STs),
-  [op(not):_],
-  !,
+  [textual_op(not):_],
   cmd(in)                             # 'IN after NOT',
   assume_schema(Schema).
 
@@ -844,6 +846,8 @@ p_ren_argument(A) -->
   ren_argument(A).
 p_ren_argument(A) --> 
   sql_argument(A,_AS).
+
+
 
 
 ren_argument(Arg) -->
@@ -1608,7 +1612,7 @@ sql_condition(PP,To) -->
   !,
   r_sql_condition(PP,0,T/To).
 sql_condition(PP,To) -->
-  [op(OP):_],
+  [textual_op(OP):_],
   {sql_operator(P,FX,OP),
     prefix(P,FX,PR),
     P=<PP},
@@ -1617,7 +1621,7 @@ sql_condition(PP,To) -->
   r_sql_condition(PP,P,NT/To).
 
 r_sql_condition(PP,Pi,Ti/To) -->
-  [op(OP):_],
+  [textual_op(OP):_],
   {sql_operator(P,YFX,OP),
     infix(P,YFX,PL,PR),
     P=<PP,
@@ -1680,7 +1684,7 @@ cond_factor(is_null(R)) -->
 cond_factor(not(is_null(R))) --> 
   sql_expression(R,_T),  
   cmd(is)                             # 'IS',
-  op(not)                             # 'NULL or NOT NULL',
+  textual_op(not)                     # 'NULL or NOT NULL',
   ([cmd(null):_] -> {true} ; set_error('Syntax', 'NULL')). 
 cond_factor(exists(R)) -->
   [cmd(exists):_],
@@ -1692,17 +1696,17 @@ cond_factor(and('<='(L,C),'<='(C,R))) -->
   cmd(between)                        # 'BETWEEN',
   sql_expression(L,_LT),
   %syntax_check_same_types('BETWEEN test',CT,LT),
-  op(and)                             # 'AND',
+  textual_op(and)                     # 'AND',
   sql_expression(R,_RT),
   %syntax_check_same_types('BETWEEN test',LT,RT),
   syntax_check_between(L,R).
 cond_factor(or('>'(L,C),'>'(C,R))) --> 
   sql_expression(C,_CT),
-  op(not)                             # 'NOT',
+  textual_op(not)                     # 'NOT',
   cmd(between)                        # 'BETWEEN',         
   sql_expression(L,_LT),
   %syntax_check_same_types('BETWEEN test',CT,LT),
-  op(and)                             # 'AND',
+  textual_op(and)                     # 'AND',
   sql_expression(R,_RT),
   %syntax_check_same_types('BETWEEN test',LT,RT),
   syntax_check_between(L,R).
@@ -1714,7 +1718,7 @@ cond_factor(in(L,R)) -->
   closing_parentheses_star(N).
 cond_factor(not_in(L,R)) --> 
   column_or_constant_tuple(L,A),
-  op(not)                             # 'NOT',
+  textual_op(not)                     # 'NOT',
   cmd(in)                             # 'IN',
   opening_parentheses_star(N),
   dql_or_constant_tuples(A,R),
@@ -1868,7 +1872,9 @@ sql_expression(PP,Lo,To) -->
   !, % WARNING
   r_sql_expression(PP,0,L/Lo,T/To).
 sql_expression(PP,Lo,To) -->
-  ([op(OP):_]; [fn(mod):_], {OP = mod}),
+  ([op(OP):_]; 
+  [textual_op(OP):_]; 
+  [fn(mod):_], {OP = mod}),
   {operator(P,FX,[T,Ta],POP,OP),
     prefix(P,FX,PR),
     P=<PP},
@@ -1877,7 +1883,9 @@ sql_expression(PP,Lo,To) -->
   r_sql_expression(PP,P,NL/Lo,T/To).
   
 r_sql_expression(PP,Pi,Li/Lo,Ti/To) -->
-  ([op(OP):_]; [fn(mod):_], {OP = mod}),
+  ([op(OP):_]; 
+  [textual_op(OP):_]; 
+  [fn(mod):_], {OP = mod}),
   {operator(P,YFX,[T,Ti,RT],POP,OP),
     infix(P,YFX,PL,PR),
     P=<PP,
@@ -2125,7 +2133,7 @@ sql_case3_when_then((Expr1,Expr2)) -->
 
 % column constraint
 column_constraint(C,not_nullables([C])) -->
-  [op(not):_],
+  [textual_op(not):_],
   ([cmd(null):_] -> {true} ; set_error('Syntax', 'NULL')).
   %!. 
 column_constraint(_C,true) -->
@@ -2169,7 +2177,7 @@ column_constraint(_,_) -->
 
 % table constraint
 table_constraint(not_nullables(Cs)) -->
-  [op(not):_],
+  [textual_op(not):_],
   cmd(null)                           # 'NULL',
   column_tuple(Cs)                    # 'a column sequence between parentheses'.
 table_constraint(primary_key(Cs)) -->
@@ -2326,6 +2334,10 @@ sql_user_identifier(Name) -->
 sql_user_identifier(Name) -->
   [cmd(Name):_Pos].
 
+sql_user_identifier(Name) -->
+  [textual_op(Name):_Pos],
+  { Name \== not }.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Syntax check
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2453,7 +2465,7 @@ integer(N) -->
 % optional_op(-Op, true/false)//
 % Optional op
 optional_op(Op,true) -->
-  [op(Op):_].
+  [textual_op(Op):_].
 optional_op(_Op,false) -->
   [].
 
@@ -2515,13 +2527,14 @@ closing_parentheses_star(N,N) -->
 
 % terminal(?Token)
 terminal(id(_)).
-terminal(quoted_id(_)).
 terminal(id_lc_start(_)).
+terminal(quoted_id(_)).
 terminal(cmd(_)).
 terminal(cmd_fn(_)).
-terminal(comparisonOp(_)).
-terminal(op(_)).
 terminal(fn(_)).
+terminal(op(_)).
+terminal(textual_op(_)).
+terminal(comparisonOp(_)).
 terminal(int(_)).
 terminal(frac(_, _)).
 terminal(float(_, _, _)).
@@ -3072,7 +3085,7 @@ test088 :-
 test089 :-
   test(parser, lex_parse, 'test/test020.sql', 
     [(with((select(all,top(all),no_offset,*,[],from([(l,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(select(all,top(all),no_offset,[expr(cte(1,number(A)),_,number(A))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_))]),_),
-    (with((select(all,top(all),no_offset,*,[],from([(l,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(select(all,top(all),no_offset,[expr(cte(1,number(B)),_,number(B))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_)),not((select(all,top(all),no_offset,[expr(cte(1,number(J)),_,number(J))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_))),(select(all,top(all),no_offset,[expr(cte(1,number(K)),_,number(K))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_))]),_),
+    (with((select(all, top(all), no_offset, *, [], from([(l, _91802)]), where(true), group_by([]), having(true), order_by([], [])), _90348), [(select(all, top(all), no_offset, [expr(cte(1, number(_84662)), _84538, number(_84662))], [], from([(dual, _83924)]), where(true), group_by([]), having(true), order_by([], [])), l(a:_85574)),  (not select(all, top(all), no_offset, [expr(cte(1, number(_86684)), _86560, number(_86684))], [], from([(dual, _85946)]), where(true), group_by([]), having(true), order_by([], [])), l(a:_88054)),  (select(all, top(all), no_offset, [expr(cte(1, number(_89154)), _89030, number(_89154))], [], from([(dual, _88416)]), where(true), group_by([]), having(true), order_by([], [])), l(a:_90066))]), _83282),
     (with((select(all,top(all),no_offset,*,[],from([(connect,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(select(all,top(all),no_offset,[expr(attr(flight,origin,_),_,_),expr(attr(connect,destination,_),_,_)],[],from([(flight,_),(connect,_)]),where(attr(flight,destination,_)=attr(connect,origin,_)),group_by([]),having(true),order_by([],[])),connect(origin:_,destination:_))]),_),
     (with((select(all,top(all),no_offset,*,[],from([(travel,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(union(distinct,(select(all,top(all),no_offset,[expr(cte(mad,string(C)),_,string(C)),expr(cte(lon,string(D)),_,string(D)),expr(cte(-2.204,number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(cte(par,string(E)),_,string(E)),expr(cte(ber,string(F)),_,string(F)),expr(cte(3.0,number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),flight(origin:_,destination:_,time:_))]),_),
     (with((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(p,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),p(a:_))]),_),
@@ -3380,4 +3393,6 @@ test138 :-
     (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)div cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)mod cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)rem cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
+    create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[div|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_)),
+    create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[rem|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_)),
     create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[mod|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_))]).
