@@ -1,4 +1,11 @@
 assume select 1 not in l(a) select * from l;
 
-with((select(all,top(all),no_offset,*,[],from([(l,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[not((select(all,top(all),no_offset,[expr(cte(1,number(A)),_,number(A))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_)))]),_)
-with((select(all, top(all), no_offset, *, [], from([(l, _72264)]), where(true), group_by([]), having(true), order_by([], [])), _70810), [(not select(all, top(all), no_offset, [expr(cte(1, number(_67650)), _67478, number(_67650))], [], from([(dual, _66816)]), where(true), group_by([]), having(true), order_by([], [])), l(a:_70528))]), _66164)
+create table "t"("a" int);
+
+create table [t]([a] int);
+
+create table `t`([a] int);
+
+
+select 1 into i;
+select r into i;

@@ -36,7 +36,7 @@ SELECT 1 INTO v from t;
 select age into v from t;
 select a from (select a from t);
 
-SELECT * FROM t WHERE a=$v$;
+SELECT * FROM t WHERE a=$v;
 
 select * from t group by "1";
 select count(*) from t group by a;

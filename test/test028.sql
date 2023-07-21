@@ -1,5 +1,10 @@
-select * from (t full join s) join u;
-select c from (select a c from t) v where v.c=1;
-select * from (t natural full join s) left join u on 10*s.c=u.b or 100*t.b=u.b;
+create table t3(a3,b3,c3) as select a from n as;
+insert into emp values ('987',2500,'987'), ('456',2000,'456'), ('123',1000,'456'), ('235',1000,'987'), ('567',800,'123'), ('678',600,'567'), ('789',500,'678');
 
---super slower if i swap statement 1 with statement 2
+select x from b where x div 2 = 0;
+select x from b where x mod 2 = 0;
+select x from b where x rem 2 = 0;
+
+create table t3(a3,b3,c3) as select a from n as div;
+create table t3(a3,b3,c3) as select a from n as rem;
+create table t3(a3,b3,c3) as select a from n as mod;
