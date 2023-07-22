@@ -57,14 +57,6 @@ lex_parse(Input, SyntaxTrees) :-
   parse(FilteredTokens, SyntaxTrees).
 */
 
-measure_execution_time(Goal) :-
-  statistics(walltime, [Start|_]),
-  Goal,
-  statistics(walltime, [End|_]),
-  Time is End - Start,
-  format('Execution took ~3d ms.~n', [Time]).
-
-
 lex_parse(Input) :-
   lex(Input, Tokens),
   phrase(filter_tokens(FilteredTokens, []), Tokens),
@@ -140,6 +132,13 @@ filter_tokens([H|Filtered], Rest) -->
   [H], 
     { H \= punct(nl):_, H \= comment(_):_ }, 
     filter_tokens(Filtered, Rest).
+
+measure_execution_time(Goal) :-
+  statistics(walltime, [Start|_]),
+  Goal,
+  statistics(walltime, [End|_]),
+  Time is End - Start,
+  format('Execution took ~3d ms.~n', [Time]).
 
 pretty_print(Term) :-
   copy_term_nat(Term, Copy),
@@ -1360,9 +1359,9 @@ tmlStmt([commit|STs]/STs) -->
 tmlStmt([rollback([SP])|STs]/STs) -->
   [cmd(rollback/_):_],
   optional_cmd(work),
-  cmd(to/_)                             # 'TO',
-  cmd(savepoint/_)                      # 'SAVEPOINT',
-  filename(SP)                          # 'double quotes id (savepoint name)'.
+  cmd(to/_)                           # 'TO',
+  cmd(savepoint/_)                    # 'SAVEPOINT',
+  filename(SP)                        # 'savepoint name(id without semicolon or quoted id without unescaped quotes)'.
   %!. 
 
 % ROLLBACK
@@ -1374,13 +1373,16 @@ tmlStmt([rollback([])|STs]/STs) -->
 % SAVEPOINT
 tmlStmt([savepoint([SP])|STs]/STs) -->
   [cmd(savepoint/_):_],
-  filename(FileName)                  # 'double quotes id(savepoint name)',
+  filename(FileName)                  # 'savepoint name(id without semicolon or quoted id without unescaped quotes)',
   {atom_concat(FileName,'.ddb',SP)}.
 
 % filename(FileName)//
-% get file name -> double_quotes_id()
+% get file name
 filename(FileName) -->
-  [double_quotes_id(FileName):_Pos].
+  [id_but_semicolon(FileName):_Pos].
+
+filename(FileName) -->
+  [quotes_id_but_quotes(FileName):_Pos].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SQL Types
@@ -2659,12 +2661,12 @@ test006 :-
     failure(error('Syntax', 'SAVEPOINT', pos(1, 13)))).
 
 test007 :-
-  test(parser, lex_parse, "ROLLBACK WORK TO SAVEPOINT sp1",
-    failure(error('Syntax', 'double quotes id (savepoint name)', pos(1, 28)))).
+  test(parser, lex_parse, "ROLLBACK WORK TO SAVEPOINT sp;1",
+    failure(error('Syntax', 'savepoint name(id without semicolon or quoted id without unescaped quotes)', pos(1, 28)))).
 
 test008 :-
-  test(parser, lex_parse, "ROLLBACK TO SAVEPOINT 'sp1'",
-    failure(error('Syntax', 'double quotes id (savepoint name)', pos(1, 23)))).
+  test(parser, lex_parse, "ROLLBACK TO SAVEPOINT ""s\"p1""",
+    failure(error('Syntax', 'savepoint name(id without semicolon or quoted id without unescaped quotes)', pos(1, 23)))).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DDLstmt CREATE, CREATE OR REPLACE

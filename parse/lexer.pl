@@ -149,6 +149,23 @@ separator(id(_), no) -->>
   !,
   [].
 */
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% IDENTIFIER BUT SEMICOLON and QUOTES IDENTIFIER BUT QUOTES 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+separator(cmd(savepoint/_), Id) -->>
+  identifier_but_semicolon(Id),
+  !.
+
+
+separator(cmd(savepoint/_), Id) -->>
+  quotes_identifier_but_quotes(Id),
+  !.
+
+separator(cmd(savepoint/_), no) -->>
+  !,
+  [].
+
 separator(_Token, String) -->>
   string(String),
   !.
@@ -263,24 +280,11 @@ token(id(Identifier/Case)) -->>
   identifier(Identifier/Case),
   !.
 
-/*
-token(id_but_semicolon(Identifier)) -->>
-  identifier_but_semicolon(Identifier),
-  %{ \+ is_separator(Identifier) },  % Verify that Identifier is not a separator
-  !.*/
-
 
 token(_Error) -->>
   set_error(token),
   !, fail.
 
-/*
-is_separator(C) -->>      % Tabulator
-  {non_visible_code(C)}.
-is_separator("end_of_file").
-is_separator(" ").    % Space
-is_separator("\t").   % Tab character
-*/
 
 sql_comment_start -->> % Check for SQL comment start ('--')
  "--", !, add_col(2).
@@ -1315,6 +1319,16 @@ command('rows'/Case) -->>
   !,
   add_col(4).
 
+
+command('savepoint'/Case) -->>
+  [C],
+  {is_lowercase_letter_code(C) -> Case = l; Case = u},
+  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
+  lc("avepoint"),
+  not_more_char,
+  " ",
+  !,
+  add_col(10). %savepoint + space
 
 command('savepoint'/Case) -->>
   [C],
@@ -2649,30 +2663,37 @@ identifier(_Identifier) -->>
   {!, fail}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% IDENTIFIER BUT SEMICOLON
+% IDENTIFIER BUT SEMICOLON and QUOTES IDENTIFIER BUT QUOTES 
+%those is for SAVEPOINT
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-/*
-% remark(-Remark)//
-identifier_but_semicolon(Remark) -->>
-  identifier_but_semicolon_codes(Codes0),
-  {(append([32|_], Codes, Codes0) % Remove the first blank, if it exists
-    -> true
-    ;  Codes = Codes0),
-   atom_codes(Remark, Codes)}.
+
+% identifier_but_semicolon(-Remark)//
+identifier_but_semicolon(id_but_semicolon(Id)) -->>
+  identifier_but_semicolon_codes(Codes),
+  !,
+  {atom_codes(Id, Codes)}.
 
 % remark_codes(-Remark)//
 identifier_but_semicolon_codes([]) -->>
   dcg/[10|_], % Lookahead end of line
   !.
 identifier_but_semicolon_codes([]) -->>
-  dcg/[9|_], % Lookahead end of line
+  dcg/[9|_], % Tabulator
   !.
 identifier_but_semicolon_codes([]) -->>
-  dcg/[13|_], % Lookahead end of line
+  dcg/[13|_], % carriage return
   !.
 identifier_but_semicolon_codes([]) -->>
-  dcg/[55|_], % Lookahead end of line
+  dcg/[32|_], % space
   !.
+identifier_but_semicolon_codes([]) -->>
+  dcg/[34|_], % " double quetes
+  !,
+  {fail}.
+identifier_but_semicolon_codes([]) -->>
+  dcg/[59|_], % ;
+  !,
+  {fail}.
 identifier_but_semicolon_codes([Code|Codes]) -->>
   [Code],
   inc_col,
@@ -2681,9 +2702,36 @@ identifier_but_semicolon_codes([Code|Codes]) -->>
 identifier_but_semicolon_codes([]) -->> % No more codes are left to read
   [],
   !.
-*/
+
+
+quotes_identifier_but_quotes(quotes_id_but_quotes(Id)) -->>
+  """",
+  quotes_identifier_but_quotes_codes(Codes),
+  """",
+  !,
+  add_col(2),
+  {atom_codes(Id, Codes)}.
+
+% remark_codes(-Remark)//
+quotes_identifier_but_quotes_codes([]) -->>
+  dcg/[10|_], % Lookahead end of line
+  !.
+quotes_identifier_but_quotes_codes([]) -->>
+  dcg/[34|_], % " double quetes
+  !.
+quotes_identifier_but_quotes_codes([Code|Codes]) -->>
+  [Code],
+  inc_col,
+  !,
+  quotes_identifier_but_quotes_codes(Codes).
+quotes_identifier_but_quotes_codes([]) -->> % No more codes are left to read
+  [],
+  !.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % alphanum_star(-Codes)//
 % Zero or more alphanumeric codes
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 identifier_chars_star([Code|Codes]) -->>
   ( letter(Code)
   ; digit_code(Code)
@@ -2881,12 +2929,15 @@ test027 :-
 test028 :-
   test(lexer, lex, 'test/test013.sql',  [int(2):pos(1,1),punct(nl):pos(1,2),op(+):pos(2,1),int(2):pos(2,2),punct(nl):pos(2,3),op(-):pos(3,1),int(2):pos(3,2),punct(nl):pos(3,3),frac(2,2):pos(4,1),punct(nl):pos(4,4),op(+):pos(5,1),frac(2,2):pos(5,2),punct(nl):pos(5,5),op(-):pos(6,1),frac(2,2):pos(6,2),punct(nl):pos(6,5),float(2,0,2):pos(7,1),punct(nl):pos(7,4),float(2,0,-2):pos(8,1),punct(nl):pos(8,5),op(-):pos(9,1),float(2,0,2):pos(9,2),punct(nl):pos(9,5),op(-):pos(10,1),float(2,0,2):pos(10,2),punct(nl):pos(10,6),op(-):pos(11,1),float(2,0,-2):pos(11,2),punct(nl):pos(11,6),float(2,2,2):pos(12,1),punct(nl):pos(12,6),float(2,2,-2):pos(13,1),punct(nl):pos(13,7),op(+):pos(14,1),float(2,2,-2):pos(14,2),punct(nl):pos(14,8),op(-):pos(15,1),float(2,2,2):pos(15,2),punct(nl):pos(15,7),op(-):pos(16,1),float(2,2,-2):pos(16,2)]).
 
-/*
 test029 :-
+  test(lexer, lex, "delete from t1 /*", failure(error('Syntax', 'unclosed multiline comment', pos(1, 18)))).
+
+/*
+test031 :-
   test(lexer, lex, "SELECT * FROM t WHERE a=$v$;", failure(error('Lexical', token, pos(1, 27)))).
 */
 
-test029 :-
-  test(lexer, lex, "delete from t1 /*", failure(error('Syntax', 'unclosed multiline comment', pos(1, 18)))).
+test030 :-
+  test(lexer, lex, 'test/test029.sql', [cmd(savepoint/l):pos(1,1),id_but_semicolon('+/&d'):pos(1,11),punct(nl):pos(1,15),cmd(savepoint/l):pos(2,1),fn(e/l):pos(2,11),punct(;):pos(2,12),id(t/l):pos(2,13),punct(nl):pos(2,14),cmd(savepoint/l):pos(3,1),quotes_id_but_quotes('+/&d'):pos(3,11),double_quotes_id('3'):pos(3,17),punct(nl):pos(3,20),cmd(savepoint/l):pos(4,1),quotes_id_but_quotes('+/&d3'):pos(4,11),punct(nl):pos(4,18),cmd(savepoint/u):pos(5,1),id_but_semicolon(kkk):pos(5,11)]).
 
 punctuation('comilla') -->> "'",  !, inc_col.

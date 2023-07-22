@@ -8,7 +8,8 @@ create table `t`([a] int);
 
 
 select 1 into i;
-select r into i;*/
+select r into i;
 
-&4
-a /6
+*/
+
+savepoint
