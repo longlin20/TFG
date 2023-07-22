@@ -1,2 +1,4 @@
-select 1 into i;
-SELECT * FROM t WHERE a=$v$
+/*select 1 into i;
+SELECT * FROM t WHERE a=$v;*/
+--"\"""reer""\""
+--"reer

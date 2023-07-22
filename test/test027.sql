@@ -6,3 +6,4 @@ select SELECT INTO into;
 select 2 into r, e;
 select 3 into 'Select';
 select 4 into or;
+select r into '';

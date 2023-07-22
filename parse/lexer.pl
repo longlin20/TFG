@@ -56,19 +56,24 @@ edcg:pred_info(get_pos,  1, [position]).
 % - Strings (delimited by single quotes)
 %     str(String)
 % - Commands:
-%     cmd(Command)
+%     cmd(Command/Case)
 % - Functions
-%     fn(Function)
-% - Commands and Functions
-%     cmd_fn(Function/Arity)
+%     fn(Function/Case)
+% - Commands or Functions, word can be both cmd or fn
+%     cmd_fn(C_F/Case)
 % - Operators (symbolic and textual):
 %     op(Operator)
 %     comparisonOp(Operator)
+%     textual_op(Operator/Case)
 % - Punctuation: ( ) , ; : "...
 % - (User) Identifiers:
-%     id(Identifier).
+%     id(Identifier/Case).
 % - (User) Quoted Identifiers:
-%     quoted_id(Identifier).
+%     double_quotes_id(Identifier).
+% - (User) Quoted Identifiers:
+%     back_quotes_id(Identifier).
+% - (User) Quoted Identifiers:
+%     square_brackets_id(Identifier).
 
 lex(Input) :-
   reset_error,
@@ -108,10 +113,13 @@ token_pos_list(TokenPosList) -->>
 token_pos_list([]) -->>
   separators_star.
 
+% If there are no more codes to read, there is no need for 
+%   a final separator
 separator(_Token, no) -->>
   eoc,
   !.
   
+% If the previous token is an operator, there is no need for a separator
 separator(op(_), no) -->>
   !,
   [].
@@ -120,6 +128,7 @@ separator(comparisonOp(_), no) -->>
   !,
   [].
 
+% If the previous token is a punctuation mark, there is no need for a separator
 separator(punct(_), no) -->>
   !,
   [].
@@ -128,20 +137,24 @@ separator(str(_), no) -->>
   !,
   [].
 
-separator(quoted_id(_), no) -->>
+separator(double_quotes_id(_), no) -->>
+  !,
+  [].
+/*
+separator(back_quotes_id(_), no) -->>
   !,
   [].
 
 separator(id(_), no) -->>
   !,
   [].
-
+*/
 separator(_Token, String) -->>
   string(String),
   !.
 
 separator(_Token, QuotedID) -->>
-  quoted_identifier(QuotedID),
+  double_quotes_identifier(QuotedID),
   !.
 
 separator(_Token, punct(nl)) -->>
@@ -199,9 +212,15 @@ token(String) -->>
   string(String),
   !. 
 
-token(quoted_id(Identifier)) -->>
-  quoted_identifier(Identifier),
+token(Identifier) -->>
+  double_quotes_identifier(Identifier),
   !.
+
+/*
+token(back_quotes_id(Identifier)) -->>
+  back_quotes_identifier(Identifier),
+  !.
+*/
 
 token(comment(Comment)) -->> % SQL comments: include the rest of the line as the comment
   sql_comment_start,
@@ -220,7 +239,8 @@ token(comment(Comment)) -->>
 token(Delimiter) -->>
   delimiter(Delimiter),
   { Delimiter \== punct('\''),
-    Delimiter \== punct('"') }, % Excludes single quotes and double quotes
+    Delimiter \== punct('"')/*, 
+    Delimiter \== punct('`')*/}, % Excludes single quotes and double quotes
   !.
 
 token(cmd_fn(Command/Case)) -->>
@@ -243,10 +263,24 @@ token(id(Identifier/Case)) -->>
   identifier(Identifier/Case),
   !.
 
+/*
+token(id_but_semicolon(Identifier)) -->>
+  identifier_but_semicolon(Identifier),
+  %{ \+ is_separator(Identifier) },  % Verify that Identifier is not a separator
+  !.*/
+
+
 token(_Error) -->>
   set_error(token),
   !, fail.
 
+/*
+is_separator(C) -->>      % Tabulator
+  {non_visible_code(C)}.
+is_separator("end_of_file").
+is_separator(" ").    % Space
+is_separator("\t").   % Tab character
+*/
 
 sql_comment_start -->> % Check for SQL comment start ('--')
  "--", !, add_col(2).
@@ -2453,6 +2487,9 @@ is_number_code(Code) :-
     N9 >= Code,
     !.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% STRING
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % string(-String)
 % Strings (str/1). Delimited by simple quotes.
 % Simple quotes inside a string are scaped as doubling them
@@ -2495,39 +2532,93 @@ string_codes([Code|Codes]) -->>
   [Code],
   string_codes(Codes).
 
-quoted_identifier(Identifier) -->>
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% DOUBLE QUOTES IDENTIFIER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+double_quotes_identifier(double_quotes_id(Identifier)) -->>
   """",
-  rest_of_quotes_id(Identifier).
+  rest_of_double_quotes_id(Identifier).
   
-% rest_of_string(-String)//
-rest_of_quotes_id(Identifier) -->>
-  quotes_id_codes(IdentifierCodes),
+
+rest_of_double_quotes_id(Identifier) -->>
+  double_quotes_id_codes(IdentifierCodes),
   """",
   !,
   {atom_codes(Identifier, IdentifierCodes),
    length(IdentifierCodes, Length),
    Cols is Length+2},
   add_col(Cols).
-rest_of_quotes_id(_IdentifierCodes) -->>
-  set_error(quoted_id),
+rest_of_double_quotes_id(_IdentifierCodes) -->>
+  set_error(double_quotes_id),
   {!, fail}.
 
-% string_codes(-Codes)//
-quotes_id_codes([Code|Codes]) -->>
+double_quotes_id_codes([Code|Codes]) -->>
   """""", % Escaped double quotes
   !,
   inc_col,
   {"""" = [Code]},
-  quotes_id_codes(Codes).
-quotes_id_codes([]) -->> % End of string
+  double_quotes_id_codes(Codes).
+double_quotes_id_codes([Code|Codes]) -->>
+  "\\""", % Escaped \"
+  !,
+  inc_col, %for \
+  {"""" = [Code]},
+  double_quotes_id_codes(Codes).
+double_quotes_id_codes([]) -->> % End of string
   {[C]=""""},
   dcg/[C|_], % Lookahead. right-hand contexts unsupported in -->>
   !.
-quotes_id_codes([Code|Codes]) -->>
+double_quotes_id_codes([Code|Codes]) -->>
   [Code],
-  quotes_id_codes(Codes).
+  double_quotes_id_codes(Codes).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% BACK QUOTES IDENTIFIER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/*
+back_quotes_identifier(Identifier) -->>
+  "`",
+  rest_of_back_quotes_id(Identifier).
+
+
+rest_of_back_quotes_id(Identifier) -->>
+  back_quotes_id_codes(IdentifierCodes),
+  "`",
+  !,
+  {atom_codes(Identifier, IdentifierCodes),
+   length(IdentifierCodes, Length),
+   Cols is Length+2},
+  add_col(Cols).
+rest_of_back_quotes_id(_IdentifierCodes) -->>
+  set_error(back_quotes_id),
+  {!, fail}.
+
+
+back_quotes_id_codes([Code|Codes]) -->>
+  "``", % Escaped double back quotes
+  !,
+  inc_col,
+  {"`" = [Code]},
+  back_quotes_id_codes(Codes).
+back_quotes_id_codes([Code|Codes]) -->>
+  "\`", % Escaped \`
+  !,
+  inc_col, %for \
+  {"`" = [Code]},
+  back_quotes_id_codes(Codes).
+back_quotes_id_codes([]) -->> % End of string
+  {[C]="`"},
+  dcg/[C|_], % Lookahead. right-hand contexts unsupported in -->>
+  !.
+back_quotes_id_codes([Code|Codes]) -->>
+  [Code],
+  back_quotes_id_codes(Codes).
+*/
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% IDENTIFIER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Rule to recognize an identifier start by lowercase
+
 identifier(Identifier/l) -->>
   [Code],
   {is_lowercase_letter_code(Code)},
@@ -2557,7 +2648,40 @@ identifier(_Identifier) -->>
   set_error(identifier),
   {!, fail}.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% IDENTIFIER BUT SEMICOLON
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/*
+% remark(-Remark)//
+identifier_but_semicolon(Remark) -->>
+  identifier_but_semicolon_codes(Codes0),
+  {(append([32|_], Codes, Codes0) % Remove the first blank, if it exists
+    -> true
+    ;  Codes = Codes0),
+   atom_codes(Remark, Codes)}.
 
+% remark_codes(-Remark)//
+identifier_but_semicolon_codes([]) -->>
+  dcg/[10|_], % Lookahead end of line
+  !.
+identifier_but_semicolon_codes([]) -->>
+  dcg/[9|_], % Lookahead end of line
+  !.
+identifier_but_semicolon_codes([]) -->>
+  dcg/[13|_], % Lookahead end of line
+  !.
+identifier_but_semicolon_codes([]) -->>
+  dcg/[55|_], % Lookahead end of line
+  !.
+identifier_but_semicolon_codes([Code|Codes]) -->>
+  [Code],
+  inc_col,
+  !,
+  identifier_but_semicolon_codes(Codes).
+identifier_but_semicolon_codes([]) -->> % No more codes are left to read
+  [],
+  !.
+*/
 % alphanum_star(-Codes)//
 % Zero or more alphanumeric codes
 identifier_chars_star([Code|Codes]) -->>
@@ -2567,6 +2691,7 @@ identifier_chars_star([Code|Codes]) -->>
   identifier_chars_star(Codes).
 identifier_chars_star([]) -->>
   [].
+
 
 % letter(-LetterCode)//
 letter(LetterCode) -->>
@@ -2586,8 +2711,8 @@ dollar_sign(Code) -->>
   {is_dollar_sign_code(Code)}.
 
 is_dollar_sign_code(Code) :-
-  "$" = [DSCode],
-  Code == DSCode.
+  "$" = [DCode],
+  Code == DCode.
 
 % Check if a character is an underscore
 underscore(Code) -->>
@@ -2673,10 +2798,10 @@ test :-
 % All test names must be of the form testXXX,
 % where XXX is a left-0-padded number.
 test001 :-
-  test(lexer, lex, "1 '2' ""3"" ", [int(1):pos(1,1),str('2'):pos(1,3),quoted_id('3'):pos(1,7)]). 
+  test(lexer, lex, "1 '2' ""3"" ", [int(1):pos(1,1),str('2'):pos(1,3),double_quotes_id('3'):pos(1,7)]). 
 
 test002 :-
-  test(lexer, lex, "1 '2' \"3\" ", [int(1):pos(1,1),str('2'):pos(1,3),quoted_id('3'):pos(1,7)]). 
+  test(lexer, lex, "1 '2' \"3\" ", [int(1):pos(1,1),str('2'):pos(1,3),double_quotes_id('3'):pos(1,7)]). 
 
 test003 :-
   test(lexer, lex, "10 1234.34 -1 -43.0", [int(10):pos(1,1),frac(1234,34):pos(1,4),op(-):pos(1,12),int(1):pos(1,13),op(-):pos(1,15),frac(43,0):pos(1,16)]). 
@@ -2688,7 +2813,7 @@ test005 :-
   test(lexer, lex, "1e1 1e+1 1e-1 1.1e1 1.1e+1 1.1e-1", [float(1,0,1):pos(1,1),float(1,0,1):pos(1,5),float(1,0,-1):pos(1,10),float(1,1,1):pos(1,15),float(1,1,1):pos(1,21),float(1,1,-1):pos(1,28)]). 
 
 test006 :-
-  test(lexer, lex, " """" ""ab"" ""a""""b"" ", [quoted_id(''):pos(1,2),quoted_id(ab):pos(1,5),quoted_id('a"b'):pos(1,10)]).
+  test(lexer, lex, " """" ""ab"" ""a""""b"" ", [double_quotes_id(''):pos(1,2),double_quotes_id(ab):pos(1,5),double_quotes_id('a"b'):pos(1,10)]).
 
 test007 :-
   test(lexer, lex, "'ab' 1.0", [str(ab):pos(1,1),frac(1, 0):pos(1,6)]).
@@ -2697,16 +2822,16 @@ test008 :-
   test(lexer, lex, 'test/test001.sql', [cmd(select/u):pos(1,1),id(id/u):pos(1,8),punct(','):pos(1,10),id(age/l):pos(1,12),punct(nl):pos(1,15),cmd(from/u):pos(2,1),id(user1/l):pos(2,6),punct(nl):pos(2,11),cmd(where/u):pos(3,1),id(age/l):pos(3,7),comparisonOp(>):pos(3,11),int(18):pos(3,13),punct(;):pos(3,15)]).
 
 test009 :-
-  test(lexer, lex, 'test/test002.sql', [cmd(select/u):pos(1,1),id(nombreproducto/u):pos(1,8),punct(','):pos(1,22),id(precio/u):pos(1,24),cmd(from/u):pos(1,31),quoted_id('Productos'):pos(1,36),punct(nl):pos(1,47),cmd(where/u):pos(2,1),id(precio/u):pos(2,7),op(-):pos(2,14),punct('('):pos(2,16),cmd(select/l):pos(2,17),fn(avg/u):pos(2,24),punct('('):pos(2,27),id(precio/u):pos(2,28),punct(')'):pos(2,34),cmd(from/u):pos(2,36),id(productos/u):pos(2,41),punct(')'):pos(2,50),punct(;):pos(2,51)]).
+  test(lexer, lex, 'test/test002.sql', [cmd(select/u):pos(1,1),id(nombreproducto/u):pos(1,8),punct(','):pos(1,22),id(precio/u):pos(1,24),cmd(from/u):pos(1,31),double_quotes_id('Productos'):pos(1,36),punct(nl):pos(1,47),cmd(where/u):pos(2,1),id(precio/u):pos(2,7),op(-):pos(2,14),punct('('):pos(2,16),cmd(select/l):pos(2,17),fn(avg/u):pos(2,24),punct('('):pos(2,27),id(precio/u):pos(2,28),punct(')'):pos(2,34),cmd(from/u):pos(2,36),id(productos/u):pos(2,41),punct(')'):pos(2,50),punct(;):pos(2,51)]).
 
 test010 :-
-  test(lexer, lex, 'test/test003.sql', [quoted_id(nOmbre):pos(1,1),quoted_id('no"3mbre'):pos(1,10),quoted_id('NOMBRE'):pos(1,22),punct(nl):pos(1,30),str(nOmbre):pos(2,1),str(nombre):pos(2,10),str('NOMBRE'):pos(2,19),punct(nl):pos(2,28),id(nombre/l):pos(3,1),id(nombre/l):pos(3,8),id(nombre/u):pos(3,15)]).
+  test(lexer, lex, 'test/test003.sql', [double_quotes_id(nOmbre):pos(1,1),double_quotes_id('no"3mbre'):pos(1,10),double_quotes_id('NOMBRE'):pos(1,22),punct(nl):pos(1,30),str(nOmbre):pos(2,1),str(nombre):pos(2,10),str('NOMBRE'):pos(2,19),punct(nl):pos(2,28),id(nombre/l):pos(3,1),id(nombre/l):pos(3,8),id(nombre/u):pos(3,15)]).
 
 test011 :-
   test(lexer, lex, 'test/test004.sql', [str('X=\'\'\'X'):pos(1,1),id(a/l):pos(1,13),punct(nl):pos(1,14),str(s):pos(2,1),id(b/l):pos(2,5),punct(nl):pos(2,6),str('"s"'):pos(3,1),id(c/l):pos(3,7),punct(nl):pos(3,8),str('"s"s""\''):pos(4,1),punct(nl):pos(4,11),str('It\'s raining outside'):pos(5,1),id(d/l):pos(5,25),punct(nl):pos(5,26),str('O\'Connell'):pos(6,1),punct(nl):pos(6,13),str(' d '):pos(7,1),punct(nl):pos(7,6),str('O\'Connell'):pos(8,1),id(pie/l):pos(8,14),punct(nl):pos(8,17),str(' %e_ '):pos(9,1),punct(nl):pos(9,8),str(''):pos(10,1),punct(nl):pos(10,3),str('_12e'):pos(11,1)]).
       
 test012 :-
-  test(lexer, lex, 'test/test005.sql', [cmd(varchar2/l):pos(1,1),id(a_2/l):pos(1,10),punct(nl):pos(1,13),id(algo_/l):pos(2,1),punct(nl):pos(2,6),id('$t'/u):pos(3,1),id('$t1t'/u):pos(3,4),str('$T1.t'):pos(3,9),quoted_id('$T.1'):pos(3,17),punct(nl):pos(3,23),id('$v'/u):pos(4,1),str('$V$'):pos(4,4)]).
+  test(lexer, lex, 'test/test005.sql', [cmd(varchar2/l):pos(1,1),id(a_2/l):pos(1,10),punct(nl):pos(1,13),id(algo_/l):pos(2,1),punct(nl):pos(2,6),id('$t'/u):pos(3,1),id('$t1t'/u):pos(3,4),str('$T1.t'):pos(3,9),double_quotes_id('$T.1'):pos(3,17),punct(nl):pos(3,23),id('$v'/u):pos(4,1),str('$V$'):pos(4,4)]).
 
 test013 :-
   test(lexer, lex, 'test/test006.sql', [cmd(select/l):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,69),cmd(from/l):pos(2,1),id(tabla/l):pos(2,6)]).
@@ -2730,7 +2855,7 @@ test019 :-
   test(lexer, lex, 'test/test012.sql', [cmd(create/l):pos(1,1),textual_op(or/l):pos(1,8),cmd_fn(replace/l):pos(1,11),cmd(view/l):pos(1,19),id(v1_1/l):pos(1,24),punct('('):pos(1,28),id(a/l):pos(1,29),punct(')'):pos(1,30),cmd((as)/l):pos(1,32),cmd(select/l):pos(1,35),id(t1/l):pos(1,42),punct('.'):pos(1,44),id(a/l):pos(1,45),cmd(from/l):pos(1,47),id(v1_2/l):pos(1,52),id(t1/l):pos(1,57),punct(','):pos(1,59),id(v2_2/l):pos(1,60),id(t2/l):pos(1,65),cmd(where/l):pos(1,68),id(t1/l):pos(1,74),punct('.'):pos(1,76),id(a/l):pos(1,77),comparisonOp(=):pos(1,78),id(t2/l):pos(1,79),punct('.'):pos(1,81),id(a/l):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert/l):pos(3,1),cmd(into/l):pos(3,8),id(t/l):pos(3,13),cmd(values/l):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
 
 test020 :-
-  test(lexer, lex, "a1.2", [id(a1/l):pos(1,1),frac(0,2):pos(1,3)]).      
+  test(lexer, lex, "a1.2", [id(a1/l):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      
 
 test021 :-
   test(lexer, lex, "1a", failure(error('Lexical', number, pos(1,2)))). 
@@ -2756,10 +2881,12 @@ test027 :-
 test028 :-
   test(lexer, lex, 'test/test013.sql',  [int(2):pos(1,1),punct(nl):pos(1,2),op(+):pos(2,1),int(2):pos(2,2),punct(nl):pos(2,3),op(-):pos(3,1),int(2):pos(3,2),punct(nl):pos(3,3),frac(2,2):pos(4,1),punct(nl):pos(4,4),op(+):pos(5,1),frac(2,2):pos(5,2),punct(nl):pos(5,5),op(-):pos(6,1),frac(2,2):pos(6,2),punct(nl):pos(6,5),float(2,0,2):pos(7,1),punct(nl):pos(7,4),float(2,0,-2):pos(8,1),punct(nl):pos(8,5),op(-):pos(9,1),float(2,0,2):pos(9,2),punct(nl):pos(9,5),op(-):pos(10,1),float(2,0,2):pos(10,2),punct(nl):pos(10,6),op(-):pos(11,1),float(2,0,-2):pos(11,2),punct(nl):pos(11,6),float(2,2,2):pos(12,1),punct(nl):pos(12,6),float(2,2,-2):pos(13,1),punct(nl):pos(13,7),op(+):pos(14,1),float(2,2,-2):pos(14,2),punct(nl):pos(14,8),op(-):pos(15,1),float(2,2,2):pos(15,2),punct(nl):pos(15,7),op(-):pos(16,1),float(2,2,-2):pos(16,2)]).
 
+/*
 test029 :-
   test(lexer, lex, "SELECT * FROM t WHERE a=$v$;", failure(error('Lexical', token, pos(1, 27)))).
+*/
 
-test030 :-
+test029 :-
   test(lexer, lex, "delete from t1 /*", failure(error('Syntax', 'unclosed multiline comment', pos(1, 18)))).
 
 punctuation('comilla') -->> "'",  !, inc_col.

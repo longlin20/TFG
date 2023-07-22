@@ -186,4 +186,3 @@ my_infix_operator('+',"+",'datetime_add',[datetime(DT),datetime(DT),number(integ
 my_infix_operator('+',"+",'datetime_add',[datetime(DT),number(integer),datetime(DT)],'Date/time addition between number and datetime',500,yfx).
 my_infix_operator('-',"-",'datetime_sub',[datetime(DT),datetime(DT),number(integer)],'Date/time subtraction between datetime and number',500,yfx).
 my_infix_operator('-',"-",'datetime_sub',[number(integer),datetime(DT),datetime(DT)],'Date/time subtraction between datetimes',500,yfx).
-

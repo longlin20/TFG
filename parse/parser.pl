@@ -1196,10 +1196,16 @@ dmlStmt([insert_into(TableName,Colnames,Vs)|STs]/STs) -->
 % DELETE FROM ... WHERE 
 dmlStmt([delete_from(Table,WhereCondition)|STs]/STs) -->
   [cmd(delete/_):_],
-  cmd(from/_)                           # 'FROM',
+  cmd(from/_)                         # 'FROM',
   p_ren_tablename(Table)              # 'table name',
   where_clause(WhereCondition),
   set_error_no_fail('Syntax', 'end of statement').
+
+dmlStmt([update(_Table,_Assignments,_Condition)|STs]/STs) -->
+  [cmd(update/_):_],
+  set_error_no_fail('Syntax', 'a different word after UPDATE, TABLE is not allowed'),
+  [cmd((table)/_):_],
+  {!, fail}.
 
 % UPDATE ... SET ... [WHERE ]
 dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
@@ -1209,12 +1215,6 @@ dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
   update_assignments(Assignments)     # 'sequence of column assignments Col=Expr',
   where_clause(WhereCondition),
   set_error_no_fail('Syntax', 'end of statement').
-
-
-dmlStmt([update(_Table,_Assignments,_Condition)|STs]/STs) -->
-  [cmd(update/_):_],
-  [cmd((table)/_):_],
-  set_error('Syntax', ' a different word after UPDATE; TABLE is not allowed').
 
 %insert_values_sql(Arity, Values)
 insert_values_sql(L,[Vs]) -->
@@ -1362,7 +1362,7 @@ tmlStmt([rollback([SP])|STs]/STs) -->
   optional_cmd(work),
   cmd(to/_)                             # 'TO',
   cmd(savepoint/_)                      # 'SAVEPOINT',
-  filename(SP)                        # 'double quotes id (savepoint name)'.
+  filename(SP)                          # 'double quotes id (savepoint name)'.
   %!. 
 
 % ROLLBACK
@@ -1378,9 +1378,9 @@ tmlStmt([savepoint([SP])|STs]/STs) -->
   {atom_concat(FileName,'.ddb',SP)}.
 
 % filename(FileName)//
-% get file name -> quoted_id()
+% get file name -> double_quotes_id()
 filename(FileName) -->
-  [quoted_id(FileName):_Pos].
+  [double_quotes_id(FileName):_Pos].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SQL Types
@@ -2313,9 +2313,9 @@ colname(ColName) -->
 relname(RelName) --> 
   sql_user_identifier(RelName).
 
-% get table,view or col name -> quoted_id(id) | id(id) | [id(id)] | `id(id)` 
+% get table,view or col name -> double_quotes_id(id) | id(id) | [id(id)] | `id(id)` 
 sql_user_identifier(Name) -->
-  [quoted_id(Name):_Pos].
+  [double_quotes_id(Name):_Pos].
 
 sql_user_identifier(Name) --> 
   [punct('['):_],  %no "punct(']') # 'opening bracket'" because it's not mandatory
@@ -2577,7 +2577,7 @@ closing_parentheses_star(N,N) -->
 
 % terminal(?Token)
 terminal(id(_)).
-terminal(quoted_id(_)).
+terminal(double_quotes_id(_)).
 terminal(cmd(_)).
 terminal(cmd_fn(_)).
 terminal(fn(_)).
@@ -3442,7 +3442,8 @@ test136 :-
     (select(all,top(all),no_offset,[expr((select(all,top(all),no_offset,[expr(attr(_,into,_),into,_)],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),_,_)],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(2,number(B)),_,number(B))],[r,e],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(3,number(C)),_,number(C))],['Select'],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(cte(4,number(D)),_,number(D))],[or],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
+    (select(all,top(all),no_offset,[expr(cte(4,number(D)),_,number(D))],[or],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,r,_),_,_)],[''],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SELECT...INTO FROMless STATEMENTS error
@@ -3473,3 +3474,7 @@ test140 :-
     create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[div|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_)),
     create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[rem|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_)),
     create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[mod|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_))]).
+
+test141 :-
+  test(parser, lex_parse, "update table set a=1",
+    failure(error('Syntax', 'a different word after UPDATE, TABLE is not allowed', pos(1, 8)))).
