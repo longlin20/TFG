@@ -213,6 +213,11 @@ separator -->>
   "end_of_file",
   !.
 
+separator -->>
+  set_error('unclosed multiline comment or separator or token'),
+  !, fail.
+
+
 skip_non_visible -->>
   [C],
   {non_visible_code(C)},
@@ -2906,10 +2911,10 @@ test020 :-
   test(lexer, lex, "a1.2", [id(a1/l):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      
 
 test021 :-
-  test(lexer, lex, "1a", failure(error('Lexical', number, pos(1,2)))). 
+  test(lexer, lex, "1a", failure(error('Lexical', 'unclosed multiline comment or separator or token', pos(1,2)))). 
 
 test022 :-
-  test(lexer, lex, "1.1a", failure(error('Lexical', fractional, pos(1,4)))).
+  test(lexer, lex, "1.1a", failure(error('Lexical', 'unclosed multiline comment or separator or token', pos(1,4)))).
 
 test023 :-
   test(lexer, lex, "-1.a", failure(error('Lexical', fractional, pos(1,4)))).
@@ -2918,26 +2923,24 @@ test024 :-
   test(lexer, lex, "0.1E++2", failure(error('Lexical', exponent, pos(1,5)))).
 
 test025 :-
-  test(lexer, lex, "0.1e+2a", failure(error('Lexical', exponent, pos(1,7)))).
+  test(lexer, lex, "0.1e+2a", failure(error('Lexical', 'unclosed multiline comment or separator or token', pos(1,7)))).
 
 test026 :-
   test(lexer, lex, "10 \n 1.", failure(error('Lexical', fractional, pos(2,4)))).
 
 test027 :-
-  test(lexer, lex, "_1", failure(error('Lexical', token, pos(1, 1)))).
+  test(lexer, lex, "_1", failure(error('Lexical', 'unclosed multiline comment or separator or token', pos(1, 1)))).
 
 test028 :-
   test(lexer, lex, 'test/test013.sql',  [int(2):pos(1,1),punct(nl):pos(1,2),op(+):pos(2,1),int(2):pos(2,2),punct(nl):pos(2,3),op(-):pos(3,1),int(2):pos(3,2),punct(nl):pos(3,3),frac(2,2):pos(4,1),punct(nl):pos(4,4),op(+):pos(5,1),frac(2,2):pos(5,2),punct(nl):pos(5,5),op(-):pos(6,1),frac(2,2):pos(6,2),punct(nl):pos(6,5),float(2,0,2):pos(7,1),punct(nl):pos(7,4),float(2,0,-2):pos(8,1),punct(nl):pos(8,5),op(-):pos(9,1),float(2,0,2):pos(9,2),punct(nl):pos(9,5),op(-):pos(10,1),float(2,0,2):pos(10,2),punct(nl):pos(10,6),op(-):pos(11,1),float(2,0,-2):pos(11,2),punct(nl):pos(11,6),float(2,2,2):pos(12,1),punct(nl):pos(12,6),float(2,2,-2):pos(13,1),punct(nl):pos(13,7),op(+):pos(14,1),float(2,2,-2):pos(14,2),punct(nl):pos(14,8),op(-):pos(15,1),float(2,2,2):pos(15,2),punct(nl):pos(15,7),op(-):pos(16,1),float(2,2,-2):pos(16,2)]).
 
 test029 :-
-  test(lexer, lex, "delete from t1 /*", failure(error('Syntax', 'unclosed multiline comment', pos(1, 18)))).
-
-/*
-test031 :-
-  test(lexer, lex, "SELECT * FROM t WHERE a=$v$;", failure(error('Lexical', token, pos(1, 27)))).
-*/
+  test(lexer, lex, "delete from t1 /*", failure(error('Lexical', 'unclosed multiline comment or separator or token', pos(1, 16)))).
 
 test030 :-
   test(lexer, lex, 'test/test029.sql', [cmd(savepoint/l):pos(1,1),id_but_semicolon('+/&d'):pos(1,11),punct(nl):pos(1,15),cmd(savepoint/l):pos(2,1),fn(e/l):pos(2,11),punct(;):pos(2,12),id(t/l):pos(2,13),punct(nl):pos(2,14),cmd(savepoint/l):pos(3,1),quotes_id_but_quotes('+/&d'):pos(3,11),double_quotes_id('3'):pos(3,17),punct(nl):pos(3,20),cmd(savepoint/l):pos(4,1),quotes_id_but_quotes('+/&d3'):pos(4,11),punct(nl):pos(4,18),cmd(savepoint/u):pos(5,1),id_but_semicolon(kkk):pos(5,11)]).
+
+test031 :-
+  test(lexer, lex, "SELECT * FROM t WHERE a=$v$;", failure(error('Lexical', 'unclosed multiline comment or separator or token', pos(1, 27)))).
 
 punctuation('comilla') -->> "'",  !, inc_col.

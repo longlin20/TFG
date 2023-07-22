@@ -12,4 +12,4 @@ select r into i;
 
 */
 
-savepoint
+SELECT * FROM t WHERE a=$v$;
