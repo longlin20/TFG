@@ -50,5 +50,5 @@ utils.pl: aqui contiene predicados de des_common.pl y des_dl_debug.pl que necesi
 dudas.txt: las dudas.
 
 carpeta test:
-test001.sql-test013.sql para lexer.
-test014.sql-test029.sql para parser.
+test001.sql-test013.sql, 029 y 030 para lexer.
+test014.sql-test028.sql 031 para parser.
