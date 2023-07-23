@@ -12,4 +12,13 @@ select r into i;
 
 */
 
-SELECT * FROM t WHERE a=$v$;
+--SELECT * FROM t WHERE a=$v$;
+--[1]
+--[%]
+--[+] 
+--[>]
+--[t\[]
+--[t\ []
+--[t\]]
+
+ROLLBACK TO SAVEPOINT "s""p1"

@@ -102,9 +102,7 @@ statement(STs) -->
   {statement_type(Stmt)},
   call(Stmt, STs),
   optional_punct(';'),
-  ([] ; [punct(')'):Pos], {set_error_with_parameter('Syntax', 'opening parenthesis ''('' not found before', [], Pos)}
-      ; [punct(']'):Pos], {set_error_with_parameter('Syntax', 'opening bracket ''['' not found before', [], Pos)}
-      ; [punct('`'):Pos], {set_error_with_parameter('Syntax', 'back quotes ''`'' not found before', [], Pos)}).
+  ([] ; [punct(')'):Pos], {set_error_with_parameter('Syntax', 'opening parenthesis ''('' not found before', [], Pos)}).
 
 statement(_) -->
   set_error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)').
@@ -182,7 +180,7 @@ pretty_print(Term) :-
 % CREATE TABLE
 ddlStmt([CRTSchema|STs]/STs) -->
   create_or_replace(CR),
-  cmd((table)/_)                          # 'TABLE or VIEW',
+  cmd((table)/_)                      # 'TABLE or VIEW',
   complete_constrained_typed_schema(Schema,Ctrs) # 'opening parenthesis ''('' or LIKE or AS',
   % syntax_check_redef(Schema), % If attempting to redefine a datalog keyword, exception is thrown.
   {atom_concat(CR,'_table',CRT),
@@ -206,12 +204,12 @@ ddlStmt([CRTSchema|STs]/STs) -->
 % CREATE TABLE LIKE
 ddlStmt([CRTSchema|STs]/STs) -->
   create_or_replace(CR),
-  cmd((table)/_)                           # 'TABLE or VIEW',
-  tablename(TableName)                 # 'opening parenthesis ''('' or LIKE or AS or column name',
+  cmd((table)/_)                      # 'TABLE or VIEW',
+  tablename(TableName)                # 'opening parenthesis ''('' or LIKE or AS or column name',
   % syntax_check_redef(TableName), % If attempting to redefine a datalog keyword, exception is thrown.
   opening_parentheses_star(N),
-  cmd(like/_)                            # 'LIKE or AS or column name',
-  tablename(ExistingTableName)         # 'table name',
+  cmd(like/_)                         # 'LIKE or AS or column name',
+  tablename(ExistingTableName)        # 'table name',
   closing_parentheses_star(N),
   {atom_concat(CR,'_table_like',CRT),
    CRTSchema=..[CRT,TableName,ExistingTableName]},
@@ -234,14 +232,14 @@ ddlStmt([CRVSchema|STs]/STs) -->
 % CREATE DATABASE
 ddlStmt([create_database(DBName)|STs]/STs) -->
   [cmd(create/_):_],
-  cmd(database/_)                       # 'TABLE or VIEW or OR REPLACE or DATABASE',
+  cmd(database/_)                     # 'TABLE or VIEW or OR REPLACE or DATABASE',
   optional_database_name(DBName)      # 'database name',
   set_error_no_fail('Syntax', 'end of statement').
 
 % ALTER TABLE
 ddlStmt([alter_table(TableName,AD,Element)|STs]/STs) -->
   [cmd(alter/_):_],
-  cmd((table)/_)                     # 'TABLE after ALTER',
+  cmd((table)/_)                      # 'TABLE after ALTER',
   current_position(Position),
   tablename(TableName)                # 'table identifier',
   alter_table_alter_column(AD,TableName,Element),
@@ -255,7 +253,7 @@ ddlStmt([rename_table(TableName,NewTableName)|STs]/STs) -->
   [cmd(rename/_):_],
   cmd((table)/_)                      # 'TABLE or VIEW',
   tablename(TableName)                # 'table name',
-  cmd(to/_)                             # 'TO',
+  cmd(to/_)                           # 'TO',
   tablename(NewTableName)             # 'table name',
   % syntax_check_redef(NewTableName),  % If attempting to redefine a datalog keyword, exception is thrown.
   set_error_no_fail('Syntax', 'end of statement').
@@ -263,9 +261,9 @@ ddlStmt([rename_table(TableName,NewTableName)|STs]/STs) -->
 % RENAME VIEW
 ddlStmt([rename_view(Viewname,NewViewname)|STs]/STs) -->
   [cmd(rename/_):_],
-  cmd(view/_)                           # 'TABLE or VIEW',
+  cmd(view/_)                         # 'TABLE or VIEW',
   viewname(Viewname)                  # 'view identifier',
-  cmd(to/_)                             # 'TO',
+  cmd(to/_)                           # 'TO',
   viewname(NewViewname)               # 'view identifier',
   % syntax_check_redef(NewViewname),  % If attempting to redefine a datalog keyword, exception is thrown.
   set_error_no_fail('Syntax', 'end of statement').
@@ -283,7 +281,7 @@ ddlStmt([drop_table(Name,Clauses)|STs]/STs) -->
 % DROP VIEW
 ddlStmt([drop_view(Name,Clauses)|STs]/STs) -->
   [cmd(drop/_):_],
-  cmd(view/_)                           # 'TABLE or VIEW or DATABASE',
+  cmd(view/_)                         # 'TABLE or VIEW or DATABASE',
   optional_drop_clauses(view,Clauses1),
   viewname(Name)                      # 'view name or optional drop view clauses(IF EXISTS, CASCADE)',
   optional_drop_clauses(view,Clauses2),
@@ -293,7 +291,7 @@ ddlStmt([drop_view(Name,Clauses)|STs]/STs) -->
 % DROP SCHEMA
 ddlStmt([drop_database(DBName)|STs]/STs) -->
   [cmd(drop/_):_],
-  cmd(database/_)                       # 'TABLE or VIEW or DATABASE',
+  cmd(database/_)                     # 'TABLE or VIEW or DATABASE',
   optional_database_name(DBName),
   set_error_no_fail('Syntax', 'end of statement').
 
@@ -302,7 +300,7 @@ ddlStmt([CRVSchema|STs]/STs) -->
   hrsql_typed_schema(Schema)          # 'typed schema', % No constraints
    % syntax_check_redef(Schema),  % If attempting to redefine a datalog keyword, exception is thrown.
   punct(':')                          # 'colon '':''',
-  comparisonOp('=')                   # 'equals ''=''', 
+  comparison_op('=')                  # 'equals ''=''', 
   dqlStmt([(SQLst,Schema)|STs]/STs)   # 'select statement',
   %{CRVSchema = create_or_replace_view(hrsql,(SQLst,_AS),Schema)}, 
   { CRVSchema =.. [create_or_replace_view,hrsql,(SQLst,_AS),Schema]},
@@ -396,8 +394,8 @@ referential_action(no_action) -->
 
 check_constraint(fd(Ls,Rs)) -->
   column_tuple(Rs),
-  cmd(determined/_)                     # 'DETERMINED',
-  cmd(by/_)                             # 'BY',
+  cmd(determined/_)                   # 'DETERMINED',
+  cmd(by/_)                           # 'BY',
   column_tuple(Ls)                    # 'a column sequence between parentheses'.
 check_constraint(my_sql_check_constraint(WhereCondition)) -->
   where_condition(WhereCondition).
@@ -758,7 +756,7 @@ select_DQL([(select(DistinctAll,TopN,Offset,ProjList,TargetList,
   select_stmt(DistinctAll,TopN),
   projection_list(ProjList),
   target_clause(TargetList),
-  cmd(from/_)                           # 'a valid FROM clause',
+  cmd(from/_)                         # 'a valid FROM clause',
   {!}, % 23-01-2021
   opening_parentheses_star(N),
   relations(Relations)                # 'a valid FROM clause',
@@ -786,7 +784,7 @@ select_DQL([(select(DistinctAll,TopN,no_offset,ProjList,TargetList,
   %set_error_no_fail('Syntax', 'end of SELECT statement').
 
 select_stmt(DistinctAll,TopN) -->
-  [cmd(select/_):_],                    %# 'SELECT'.
+  [cmd(select/_):_],
   optional_select_modifiers(DistinctAll,TopN).
 
 optional_select_modifiers(DistinctAll,TopN) -->
@@ -1242,7 +1240,7 @@ update_assignments([Column,Expression]) -->
 
 update_assignment(expr(ColumnName,_,string),Expression) -->
   column(attr(_T,ColumnName,_AS)),
-  comparisonOp('=')                   # 'equal ''=''', 
+  comparison_op('=')                   # 'equal ''=''', 
   sql_proj_expression(Expression,_Type) # 'an expression'.
 
 
@@ -1692,12 +1690,12 @@ cond_factor(false) -->
   [cmd(false/_):_].
 cond_factor(is_null(R)) --> 
   sql_expression(R,_T), 
-  cmd(is/_)                             # 'IS', 
+  cmd(is/_)                           # 'IS', 
   ([cmd(null/_):_] -> {true} ; set_error('Syntax', 'NULL or NOT NULL')). 
 cond_factor(not(is_null(R))) --> 
   sql_expression(R,_T),  
-  cmd(is/_)                             # 'IS',
-  textual_op(not/_)                     # 'NULL or NOT NULL',
+  cmd(is/_)                           # 'IS',
+  textual_op(not/_)                   # 'NULL or NOT NULL',
   ([cmd(null/_):_] -> {true} ; set_error('Syntax', 'NULL')). 
 cond_factor(exists(R)) -->
   [cmd(exists/_):_],
@@ -1706,33 +1704,33 @@ cond_factor(exists(R)) -->
   closing_parentheses_star(N).
 cond_factor(and('<='(L,C),'<='(C,R))) --> 
   sql_expression(C,_CT),
-  cmd(between/_)                        # 'BETWEEN',
+  cmd(between/_)                      # 'BETWEEN',
   sql_expression(L,_LT),
   %syntax_check_same_types('BETWEEN test',CT,LT),
-  textual_op(and/_)                     # 'AND',
+  textual_op(and/_)                   # 'AND',
   sql_expression(R,_RT),
   %syntax_check_same_types('BETWEEN test',LT,RT),
   syntax_check_between(L,R).
 cond_factor(or('>'(L,C),'>'(C,R))) --> 
   sql_expression(C,_CT),
-  textual_op(not/_)                     # 'NOT',
-  cmd(between/_)                        # 'BETWEEN',         
+  textual_op(not/_)                   # 'NOT',
+  cmd(between/_)                      # 'BETWEEN',         
   sql_expression(L,_LT),
   %syntax_check_same_types('BETWEEN test',CT,LT),
-  textual_op(and/_)                     # 'AND',
+  textual_op(and/_)                   # 'AND',
   sql_expression(R,_RT),
   %syntax_check_same_types('BETWEEN test',LT,RT),
   syntax_check_between(L,R).
 cond_factor(in(L,R)) --> 
   column_or_constant_tuple(L,A),
-  cmd(in/_)                             # 'IN',
+  cmd(in/_)                           # 'IN',
   opening_parentheses_star(N),
   dql_or_constant_tuples(A,R),
   closing_parentheses_star(N).
 cond_factor(not_in(L,R)) --> 
   column_or_constant_tuple(L,A),
-  textual_op(not/_)                     # 'NOT',
-  cmd(in/_)                             # 'IN',
+  textual_op(not/_)                   # 'NOT',
+  cmd(in/_)                           # 'IN',
   opening_parentheses_star(N),
   dql_or_constant_tuples(A,R),
   closing_parentheses_star(N).
@@ -1743,7 +1741,7 @@ cond_factor(F) -->
   [cmd(like/_):_],
   sql_expression(R,RT),
   syntax_check_expr_type(R,RT,string(_)),
-  cmd(escape/_)                         # 'ESCAPE',
+  cmd(escape/_)                       # 'ESCAPE',
   sql_expression(E,ET),
   syntax_check_expr_type(E,ET,string(_)),
   {(NOT==true -> F='$not_like'(L,R,E) ; F='$like'(L,R,E))}.
@@ -1751,7 +1749,7 @@ cond_factor(F) -->
   sql_expression(L,LT),
   syntax_check_expr_type(L,LT,string(_)),
   optional_op(not,NOT),
-  cmd(like/_)                           # 'LIKE',
+  cmd(like/_)                         # 'LIKE',
   sql_expression(R,RT),
   syntax_check_expr_type(R,RT,string(_)),
   {(NOT==true -> F='$not_like'(L,R) ; F='$like'(L,R))}.
@@ -1816,15 +1814,15 @@ relop(RO) -->
 
 set_op(SO) -->
   tuple_op(TO),
-  cmd(all/_)                            # 'ALL or ANY',
+  cmd(all/_)                          # 'ALL or ANY',
   {atom_concat(TO,'_all',SO)}.
 set_op(SO) -->
   tuple_op(TO),
-  cmd(any/_)                            # 'ALL or ANY',
+  cmd(any/_)                          # 'ALL or ANY',
   {atom_concat(TO,'_any',SO)}.
   
 tuple_op(RO) --> 
-  [comparisonOp(RO):_].
+  [comparison_op(RO):_].
 
 dql_or_constant_tuples(_A,R) -->
   dqlStmt([R|STs]/STs).
@@ -1959,7 +1957,6 @@ sql_factor(FAs,T) -->
 sql_factor(Function,number(_)) -->
   [cmd(extract/_):_],
   ([punct('('):_] -> {true} ; set_error('Syntax', 'opening parenthesis ''(''')),
-  %punct('(')                          # 'opening parenthesis ''(''',
   extract_field(Field)                # 'valid datetime field (year, month, day, hour, minute, second)',
   cmd(from/_)                         # 'FROM',
   sql_expression(C,datetime(_))       # 'valid datetime expression',  
@@ -2216,9 +2213,9 @@ table_constraint(foreign_key(Cs,FTableName,FCs)) -->
   %!.
 table_constraint(foreign_key(Cs,FTableName,Cs)) -->
   [cmd(foreign/_):_],
-  cmd(key/_)                            # 'KEY',
+  cmd(key/_)                          # 'KEY',
   column_tuple(Cs)                    # 'a column sequence between parentheses',
-  cmd(references/_)                     # 'REFERENCES', 
+  cmd(references/_)                   # 'REFERENCES', 
   tablename(FTableName)               # 'table name',
   optional_referential_triggered_action(_Rule).
   %!.
@@ -2315,15 +2312,17 @@ colname(ColName) -->
 relname(RelName) --> 
   sql_user_identifier(RelName).
 
-% get table,view or col name -> double_quotes_id(id) | id(id) | [id(id)] | `id(id)` 
+% get table,view or col name -> 
+% double_quotes_id | square_brackets_id | back_quotes_id | 
+% id | cmd/fn | textual_op but except not
 sql_user_identifier(Name) -->
   [double_quotes_id(Name):_Pos].
 
 sql_user_identifier(Name) --> 
-  [punct('['):_],  %no "punct(']') # 'opening bracket'" because it's not mandatory
-  !,
-  [id(Name/_Case):_Pos],
-  punct(']')                          # 'closing bracket '']'''.
+  [square_brackets_id(Name):_Pos].
+
+sql_user_identifier(Name) --> 
+  [back_quotes_id(Name):_Pos].
 
 sql_user_identifier(Name) --> 
   [punct('`'):_],  %no "punct('`') # 'opening back quotes'" because it's not mandatory
@@ -2577,19 +2576,20 @@ closing_parentheses_star(N,N) -->
 % text_terminal(?Token)
 
 
-% terminal(?Token)
-terminal(id(_)).
-terminal(double_quotes_id(_)).
+% terminal(?Token) for error
+
+%terminal(id(_)).
+%terminal(double_quotes_id(_)).
 terminal(cmd(_)).
-terminal(cmd_fn(_)).
-terminal(fn(_)).
+%terminal(cmd_fn(_)).
+%terminal(fn(_)).
 terminal(op(_)).
 terminal(textual_op(_)).
-terminal(comparisonOp(_)).
-terminal(int(_)).
-terminal(frac(_, _)).
-terminal(float(_, _, _)).
-terminal(str(_)).
+terminal(comparison_op(_)).
+%terminal(int(_)).
+%terminal(frac(_, _)).
+%terminal(float(_, _, _)).
+%terminal(str(_)).
 terminal(punct(_)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2665,7 +2665,7 @@ test007 :-
     failure(error('Syntax', 'savepoint name(id without semicolon or quoted id without unescaped quotes)', pos(1, 28)))).
 
 test008 :-
-  test(parser, lex_parse, "ROLLBACK TO SAVEPOINT ""s\"p1""",
+  test(parser, lex_parse, "ROLLBACK TO SAVEPOINT \"s\"\"p1\"",
     failure(error('Syntax', 'savepoint name(id without semicolon or quoted id without unescaped quotes)', pos(1, 23)))).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3006,7 +3006,7 @@ test071 :-
     (select(all,top(all),no_offset,[expr(attr(_,age,_),_,_)],[v],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,*,[],from([(t,_)]),where(attr(_,a,_)=attr(_,'$v',_)),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([expr(attr(_,'1',_),_,_)]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([expr(attr(_,'u',_),_,_)]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(count,_,number(_))],[],from([(t,_)]),where(true),group_by([expr(attr(_,a,_),_,_)]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(taras,_)]),where(true),group_by([expr(attr(_,a,_),_,_)]),having(sum(attr(_,b,_))=cte(1,number(_))),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,department,_),_,_)],[],from([(employee,_)]),where(true),group_by([expr(attr(_,department,_),_,_)]),having(count(attr(_,salary,_))>cte(1,number(_))),order_by([],[])),_),

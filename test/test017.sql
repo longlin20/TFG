@@ -38,7 +38,8 @@ select a from (select a from t);
 
 SELECT * FROM t WHERE a=$v;
 
-select * from t group by "1";
+
+select * from t group by "u";
 select count(*) from t group by a;
 
 select a from taras group by a having sum(b)=1;
@@ -54,6 +55,7 @@ ORDER BY "Codigo postal", Nombre;
 select n from n offset 10 limit 10;
 
 select distinct * from t fetch first 1 rows only;
+
 
 --correct but can't check with test.pl (i guess is because min() and max())
 --select department,max(salary) from employee group by department;
