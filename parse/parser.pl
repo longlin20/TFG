@@ -18,7 +18,8 @@
 :- use_module(utils).
 
 :- use_module(lexer,
-          [ lex/2 ]).
+          [ lex/2,
+          is_lowercase_letter_code/1]).
 
 :- use_module(des_data).
 
@@ -64,8 +65,8 @@ lex_parse(Input) :-
   split_statements(FilteredTokens, [punct(';'):_], StatementLists),
   maplist(parse, StatementLists, SyntaxTrees),
   flatten(SyntaxTrees, FlatSyntaxTrees),
-  %print(FlatSyntaxTrees).
-  forall(member(Tree, FlatSyntaxTrees), pretty_print(Tree)).
+  print(FlatSyntaxTrees).
+  %forall(member(Tree, FlatSyntaxTrees), pretty_print(Tree)).
 
 
 lex_parse(Input, FlatSyntaxTrees) :-
@@ -75,6 +76,7 @@ lex_parse(Input, FlatSyntaxTrees) :-
   split_statements(FilteredTokens, [punct(';'):_], StatementLists),
   maplist(parse, StatementLists, SyntaxTrees),
   flatten(SyntaxTrees, FlatSyntaxTrees).
+
 
 split_statements([], _, [[]]) :- !.
 split_statements([punct(';'):_|Rest], Sep, [[]|Xs]) :- !, split_statements(Rest, Sep, Xs).
@@ -503,7 +505,7 @@ optional_drop_clauses(table,ClausesIn,ClausesOut) -->
   % This option only applies to tables
   [cmd(cascade/_):_],
   [cmd(constraints/_):_],
-  optional_drop_clauses(table,[cascade_constraints|ClausesIn],ClausesOut). % Default option. Maybe a later version will change this default
+  optional_drop_clauses(table,ClausesIn,ClausesOut). % Default option. Maybe a later version will change this default
 optional_drop_clauses(RelType,ClausesIn,ClausesOut) -->
   [cmd(cascade/_):_],
   optional_drop_clauses(RelType,[cascade|ClausesIn],ClausesOut).
@@ -876,17 +878,37 @@ user_symbol(Name) -->
 user_symbol(Name) --> 
   [id(Name/l):_Pos].
 
-user_symbol(Name) --> 
-  [fn(Name/l):_Pos].
+user_symbol(Original) --> 
+  [fn(_/Original):_Pos],
+  {
+    string_chars(Original, [FirstChar|_]),  
+    char_code(FirstChar, FirstCharCode),
+    is_lowercase_letter_code(FirstCharCode)  % Check if the code corresponds to a lowercase letter
+  }.
 
-user_symbol(Name) --> 
-  [cmd(Name/l):_Pos].
+user_symbol(Original) --> 
+  [cmd(_/Original):_Pos],
+  {
+    string_chars(Original, [FirstChar|_]),  
+    char_code(FirstChar, FirstCharCode),
+    is_lowercase_letter_code(FirstCharCode)  % Check if the code corresponds to a lowercase letter
+  }.
 
-user_symbol(Name) --> 
-  [cmd_fn(Name/l):_Pos].
+user_symbol(Original) --> 
+  [cmd(_/Original):_Pos],
+  {
+    string_chars(Original, [FirstChar|_]),  
+    char_code(FirstChar, FirstCharCode),
+    is_lowercase_letter_code(FirstCharCode)  % Check if the code corresponds to a lowercase letter
+  }.
 
-user_symbol(Name) --> 
-  [textual_op(Name/l):_Pos].
+user_symbol(Original) --> 
+  [textual_op(_/Original):_Pos],
+  {
+    string_chars(Original, [FirstChar|_]),  
+    char_code(FirstChar, FirstCharCode),
+    is_lowercase_letter_code(FirstCharCode)  % Check if the code corresponds to a lowercase letter
+  }.
 
 %FROM relations
 relations([R|Rs]) --> 
@@ -1703,23 +1725,23 @@ cond_factor(exists(R)) -->
   dqlStmt([R|STs]/STs)                # 'valid SELECT statement',
   closing_parentheses_star(N).
 cond_factor(and('<='(L,C),'<='(C,R))) --> 
-  sql_expression(C,_CT),
+  sql_expression(C,CT),
   cmd(between/_)                      # 'BETWEEN',
-  sql_expression(L,_LT),
-  %syntax_check_same_types('BETWEEN test',CT,LT),
+  sql_expression(L,LT),
+  syntax_check_same_types('BETWEEN test',CT,LT),
   textual_op(and/_)                   # 'AND',
-  sql_expression(R,_RT),
-  %syntax_check_same_types('BETWEEN test',LT,RT),
+  sql_expression(R,RT),
+  syntax_check_same_types('BETWEEN test',LT,RT),
   syntax_check_between(L,R).
 cond_factor(or('>'(L,C),'>'(C,R))) --> 
-  sql_expression(C,_CT),
+  sql_expression(C,CT),
   textual_op(not/_)                   # 'NOT',
   cmd(between/_)                      # 'BETWEEN',         
-  sql_expression(L,_LT),
-  %syntax_check_same_types('BETWEEN test',CT,LT),
+  sql_expression(L,LT),
+  syntax_check_same_types('BETWEEN test',CT,LT),
   textual_op(and/_)                   # 'AND',
-  sql_expression(R,_RT),
-  %syntax_check_same_types('BETWEEN test',LT,RT),
+  sql_expression(R,RT),
+  syntax_check_same_types('BETWEEN test',LT,RT),
   syntax_check_between(L,R).
 cond_factor(in(L,R)) --> 
   column_or_constant_tuple(L,A),
@@ -1754,11 +1776,11 @@ cond_factor(F) -->
   syntax_check_expr_type(R,RT,string(_)),
   {(NOT==true -> F='$not_like'(L,R) ; F='$like'(L,R))}.
 cond_factor(C) --> 
-  sql_expression(L,_LT), 
+  sql_expression(L,LT), 
   relop(Op)                           # 'a comparison operator', 
-  sql_expression(R,_RT)               # 'valid expression',
-  {sql_rel_cond_factor(Op,L,R,C)}.
-  %syntax_check_same_types(C,LT,RT).
+  sql_expression(R,RT)                # 'valid expression',
+  {sql_rel_cond_factor(Op,L,R,C)},
+  syntax_check_same_types(C,LT,RT).
 cond_factor(true) --> 
   {current_db(_,mysql)},
   sql_constant(_C).
@@ -2296,8 +2318,8 @@ column(attr(R,C,_AS)) -->
   [punct('.'):_],
   colname(C)                          # 'column name'. 
 column(attr(_T,C,_AS)) --> 
-  colname(C).
-  %{\+ evaluable_symbol(C)}. I guess this is no need
+  colname(C),
+  {\+ evaluable_symbol(C)}.
 
 % tablename/viewname/colname/relname
 tablename(TableName) -->
@@ -2324,27 +2346,21 @@ sql_user_identifier(Name) -->
 sql_user_identifier(Name) --> 
   [back_quotes_id(Name):_Pos].
 
-sql_user_identifier(Name) --> 
-  [punct('`'):_],  %no "punct('`') # 'opening back quotes'" because it's not mandatory
-  !,
-  [id(Name/_Case):_Pos],
-  punct('`')                          # 'closing back quotes ''`'''.
-
 sql_user_identifier(Name) -->
   [id(Name/_Case):_Pos].
 
 sql_user_identifier(Name) -->
-  [cmd_fn(Name/_Case):_Pos].
+  [cmd_fn(_Lc/Name):_Pos].
 
 sql_user_identifier(Name) -->
-  [fn(Name/_Case):_Pos].
+  [fn(_Lc/Name):_Pos].
 
 sql_user_identifier(Name) -->
-  [cmd(Name/_Case):_Pos].
+  [cmd(_Lc/Name):_Pos].
 
 sql_user_identifier(Name) -->
-  [textual_op(Name/_Case):_Pos],
-  { Name \== not }.
+  [textual_op(Lc_Name/Name):_Pos],
+  { Lc_Name \== not }.
 
 my_sql_left_quotation_mark("[",ACCESS) :-
   to_uppercase(ACCESS,'ACCESS'),
@@ -2400,16 +2416,17 @@ syntax_check_redef(_Schema) -->
 
 /*syntax_check_same_types(_E,_LT,_RT) -->
   {type_casting(on),
-    !}.
+    !}.*/
 syntax_check_same_types(E,LT,RT) -->
   {nonvar(LT),
    nonvar(RT),
    !},
-  push_syntax_error(['Expected same types in ','$exec'(write_sql_cond(E,0,'$des'))],Old),
-  {LT=RT}.
+  %push_syntax_error(['Expected same types in ','$exec'(write_sql_cond(E,0,'$des'))],Old),
+  {LT=RT -> true; set_error_no_fail('Syntax', 'same types in ~w' , [E], pos(void, void))}.
 syntax_check_same_types(_E,_LT,_RT) -->
   [].
 
+/*
 syntax_check_between(cte(CteL,TypeL),cte(CteR,TypeR)) -->
   {!,
     (compute_comparison_primitive(CteL=<CteR,CteL=<CteR)
@@ -2423,13 +2440,12 @@ syntax_check_between(_L,_R) -->
 */
 
 syntax_check_expr_type(L,LT,ET) -->
-  current_position(Position),
   {nonvar(LT),
     nonvar(ET),
     !},
   {internal_typename_to_user_typename(ET,UET)},
   %push_syntax_error(['Expected ',UET,' type in ','$exec'(write_expr(L))],Old),
-  {LT=ET -> true; set_error_with_parameter('Syntax', '~w type in ~w' , [UET, L], Position)}.
+  {LT=ET -> true; set_error_no_fail('Syntax', '~w type in ~w' , [UET, L], pos(void, void))}.
 syntax_check_expr_type(_L,_LT,_ET) -->
   [].
 
@@ -2462,7 +2478,6 @@ Goal # Error -->
   Goal.
 
 % VALUES
-% int(-I)//
 int(I) -->
   integer(I).
 
@@ -2473,7 +2488,7 @@ frac(I, F, N) -->
     atom_number(AF, F),
     atom_concat(AI, '.', Temp),
     atom_concat(Temp, AF, AResult),
-    atom_number(AResult, FracNumber) },
+    atom_number(AResult, FracNumber)},
   {Sign == '-'
     -> N is -FracNumber
     ;  N = FracNumber}.
@@ -2547,7 +2562,7 @@ optional_punct(_) -->
 
 optional_parentheses -->
   [punct('('):_],
-  punct(')')                          # 'closing parenthesis '')'''.
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
 optional_parentheses -->
   [].  
 
@@ -2662,7 +2677,7 @@ test006 :-
 
 test007 :-
   test(parser, lex_parse, "ROLLBACK WORK TO SAVEPOINT sp;1",
-    failure(error('Syntax', 'savepoint name(id without semicolon or quoted id without unescaped quotes)', pos(1, 28)))).
+    failure(error('Syntax', 'valid SQL statement (SELECT, CREATE, DELETE, INSERT, UPDATE, DROP, RENAME, ALTER, SHOW, DESCRIBE, WITH, ASSUME, COMMIT, ROLLBACK, SAVEPOINT)', pos(1, 31)))).
 
 test008 :-
   test(parser, lex_parse, "ROLLBACK TO SAVEPOINT \"s\"\"p1\"",
@@ -2680,10 +2695,10 @@ test009 :-
     create_table(c(a:string(varchar),b:string(varchar)),[true,true]),
     create_table(edge(origin:string(varchar),destination:string(varchar)),[true,true]),
     create_table(flights(airline:string(varchar),frm:string(varchar),to:string(varchar),departs:number(integer),arrives:number(integer)),[true,true,true,true,true]),
-    create_table(employee(name:string(varchar(20)),department:string(varchar(20)),salary:number(integer)),[true,true,true]),
+    create_table(employee('Name':string(varchar(20)),'Department':string(varchar(20)),'Salary':number(integer)),[true,true,true]),
     create_table(emp(dni:string(varchar),numdep:number(integer)),[primary_key([dni]),foreign_key([numdep],dpto,[nd])]),
     create_table(trab(dni:string(varchar),npro:number(integer)),[foreign_key([dni],emp,[dni]),true,primary_key([dni,npro])]),
-    create_table(takes(eid:string(varchar),cid:string(varchar),tyear:number(integer),tmonth:number(integer),tday:number(integer)),[true,true,true,true,true,primary_key([eid,cid])]),
+    create_table(takes(eID:string(varchar),cID:string(varchar),tYear:number(integer),tMonth:number(integer),tDay:number(integer)),[true,true,true,true,true,primary_key([eID,cID])]),
     create_table(flight(origin:string(varchar),destination:string(varchar),time:number(float)),[true,true,true]),
     create_table(emp(dnisupervisor:string(varchar)),[true,my_sql_check_constraint(in([expr(attr(_,dnisupervisor,_),_,_)],(select(all,top(all),no_offset,[expr(attr(_,dni,_),_,_)],[],from([(emp,_)]),where(true),group_by([]),having(true),order_by([],[])),_)))]),
     create_table(t(a:number(integer)),[my_sql_check_constraint(attr(_,a,_)>cte(-0.1,number(float)))]),
@@ -2941,7 +2956,7 @@ test061 :-
     drop_view(v,[]),
     drop_table(t,[if_exists]),
     drop_table(t,[cascade]),
-    drop_table(t,[cascade_constraints]),
+    drop_table(t,[]),
     drop_view(v,[if_exists]),
     drop_view(v,[cascade]),
     drop_view(v,[if_exists]),
@@ -3009,9 +3024,9 @@ test071 :-
     (select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([expr(attr(_,'u',_),_,_)]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(count,_,number(_))],[],from([(t,_)]),where(true),group_by([expr(attr(_,a,_),_,_)]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(taras,_)]),where(true),group_by([expr(attr(_,a,_),_,_)]),having(sum(attr(_,b,_))=cte(1,number(_))),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(attr(_,department,_),_,_)],[],from([(employee,_)]),where(true),group_by([expr(attr(_,department,_),_,_)]),having(count(attr(_,salary,_))>cte(1,number(_))),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,'Department',_),_,_)],[],from([(employee,_)]),where(true),group_by([expr(attr(_,'Department',_),_,_)]),having(count(attr(_,'Salary',_))>cte(1,number(integer))),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(1,number(B)),_,number(B))],[],from([(t,_)]),where(true),group_by([]),having('<=_all'(attr(_,age,_),(select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(s,_)]),where(true),group_by([]),having(true),order_by([],[])),_))),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(attr(_,nombre,_),_,_),expr(attr(_,calle,_),_,_),expr(attr(_,'Codigo postal',_),_,_)],[],from([(inner_join((empleados,_),(domicilios,_),equijoin(natural)),_)]),where(true),group_by([]),having(true),order_by([expr(attr(_,'Codigo postal',_),_,_),expr(attr(_,nombre,_),_,_)],[a,a])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,'Nombre',_),_,_),expr(attr(_,'Calle',_),_,_),expr(attr(_,'Codigo postal',_),_,_)],[],from([(inner_join(('Empleados',_),('Domicilios',_),equijoin(natural)),_)]),where(true),group_by([]),having(true),order_by([expr(attr(_,'Codigo postal',_),_,_),expr(attr(_,'Nombre',_),_,_)],[a,a])),_),
     (select(all,top(all),offset(expr(cte(10,number(C)),_,number(C)),expr(cte(10,number(D)),_,number(D))),[expr(attr(_,n,_),_,_)],[],from([(n,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(distinct,top(expr(cte(1,number(E)),_,number(E))),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_)]).
 
@@ -3109,7 +3124,7 @@ test086 :-
     (union(distinct,(select(all,top(all),no_offset,*,[],from([(p,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(union(distinct,(select(all,top(all),no_offset,*,[],from([(q,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(union(distinct,(select(all,top(all),no_offset,[expr(attr(pqs,x,_),_,_),expr(attr(p,y,_),_,_)],[],from([(pqs,_),(p,_)]),where(attr(pqs,y,_)=attr(p,x,_)),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(pqs,x,_),_,_),expr(attr(q,y,_),_,_)],[],from([(pqs,_),(q,_)]),where(attr(pqs,y,_)=attr(q,x,_)),group_by([]),having(true),order_by([],[])),_)),_)),_)),_),
     create_view(sql,(union(all,(select(all,top(all),no_offset,[expr(cte(0,number(A)),_,number(A))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(_,n,_)+cte(1,number(_)),_,number(_))],[],from([(n,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_),n(n:_)),
     (except(distinct,(select(all,top(all),no_offset,*,[],from([(a,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(b,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_),
-    (except(distinct,(select(all,top(all),no_offset,[expr(attr(_,dni,_),_,_)],[],from([(vista1,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(union(distinct,(select(all,top(all),no_offset,[expr(attr(_,dniemp,_),_,_)],[],from([(distribucion,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(_,dnidir,_),_,_)],[],from([(proyectos,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_)),_),
+    (except(distinct,(select(all,top(all),no_offset,[expr(attr(_,dni,_),_,_)],[],from([(vista1,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(union(distinct,(select(all,top(all),no_offset,[expr(attr(_,dniEmp,_),_,_)],[],from([(distribucion,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(_,dniDir,_),_,_)],[],from([(proyectos,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_)),_),
     create_view(sql,(intersect(distinct,(select(all,top(all),no_offset,[expr(attr(_,dni,_),_,_)],[],from([(programadores,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(_,dni,_),_,_)],[],from([(analistas,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_),vista2),
     (select(all,top(all),no_offset,*,[],from([(s,_)]),where(not_in([expr(attr(s,a,_),_,_)],(select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_))),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(s,_)]),where(not_in([expr(attr(_,b,_),_,_)],(union(distinct,(select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(t,_)]),where(attr(t,a,_)=attr(s,a,_)),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(t,_)]),where(attr(_,b,_)=cte(1,number(_))),group_by([]),having(true),order_by([],[])),_)),_))),group_by([]),having(true),order_by([],[])),_),
@@ -3136,14 +3151,14 @@ test088 :-
 test089 :-
   test(parser, lex_parse, 'test/test020.sql', 
     [(with((select(all,top(all),no_offset,*,[],from([(l,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(select(all,top(all),no_offset,[expr(cte(1,number(A)),_,number(A))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),l(a:_))]),_),
-    (with((select(all, top(all), no_offset, *, [], from([(l, _91802)]), where(true), group_by([]), having(true), order_by([], [])), _90348), [(select(all, top(all), no_offset, [expr(cte(1, number(_84662)), _84538, number(_84662))], [], from([(dual, _83924)]), where(true), group_by([]), having(true), order_by([], [])), l(a:_85574)),(not(select(all, top(all), no_offset, [expr(cte(1, number(_86684)), _86560, number(_86684))], [], from([(dual, _85946)]), where(true), group_by([]), having(true), order_by([], []))), l(a:_88054)),  (select(all, top(all), no_offset, [expr(cte(1, number(_89154)), _89030, number(_89154))], [], from([(dual, _88416)]), where(true), group_by([]), having(true), order_by([], [])), l(a:_90066))]), _83282),
+    (with((select(all, top(all), no_offset, *, [], from([(l, _91802)]), where(true), group_by([]), having(true), order_by([], [])), _90348), [(select(all, top(all), no_offset, [expr(cte(1, number(B)), _84538, number(B))], [], from([(dual, _83924)]), where(true), group_by([]), having(true), order_by([], [])), l(a:_85574)),(not(select(all, top(all), no_offset, [expr(cte(1, number(_86684)), _86560, number(_86684))], [], from([(dual, _85946)]), where(true), group_by([]), having(true), order_by([], []))), l(a:_88054)),  (select(all, top(all), no_offset, [expr(cte(1, number(_89154)), _89030, number(_89154))], [], from([(dual, _88416)]), where(true), group_by([]), having(true), order_by([], [])), l(a:_90066))]), _83282),
     (with((select(all,top(all),no_offset,*,[],from([(connect,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(select(all,top(all),no_offset,[expr(attr(flight,origin,_),_,_),expr(attr(connect,destination,_),_,_)],[],from([(flight,_),(connect,_)]),where(attr(flight,destination,_)=attr(connect,origin,_)),group_by([]),having(true),order_by([],[])),connect(origin:_,destination:_))]),_),
     (with((select(all,top(all),no_offset,*,[],from([(travel,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(union(distinct,(select(all,top(all),no_offset,[expr(cte(mad,string(C)),_,string(C)),expr(cte(lon,string(D)),_,string(D)),expr(cte(-2.204,number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(cte(par,string(E)),_,string(E)),expr(cte(ber,string(F)),_,string(F)),expr(cte(3.0,number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),flight(origin:_,destination:_,time:_))]),_),
     (with((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(p,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),p(a:_))]),_),
     (with((select(all,top(expr(10,_,number(int))),no_offset,[expr(attr(_,a,_),_,_)],[],from([(p,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(union(distinct,(select(all,top(all),no_offset,[expr(cte(1,number(G)),_,number(G))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(_,a,_)+cte(1,number(_)),_,number(_))],[],from([(p,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),p(a:_))]),_),
     create_view(sql,(with((select(all,top(all),no_offset,*,[],from([(path,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(union(distinct,(select(all,top(all),no_offset,*,[],from([(edge,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(path,origin,_),_,_),expr(attr(edge,destination,_),_,_)],[],from([(path,_),(edge,_)]),where(attr(path,destination,_)=attr(edge,origin,_)),group_by([]),having(true),order_by([],[])),_)),path(origin:_,destination:_))]),_),paths(origin:_,destination:_)),
-    (with((select(all,top(all),no_offset,*,[],from([(reaches,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(union(distinct,(select(all,top(all),no_offset,[expr(attr(_,frm,_),_,_),expr(attr(_,to,_),_,_)],[],from([(flights,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(r1,frm,_),_,_),expr(attr(r2,to,_),_,_)],[],from([(reaches,[r1|_]),(reaches,[r2|_])]),where(attr(r1,to,_)=attr(r2,frm,_)),group_by([]),having(true),order_by([],[])),_)),reaches(frm:_,to:_))]),_),
-    create_view(sql,(with((except(distinct,(select(all,top(all),no_offset,[expr(attr(_,frm,_),_,_),expr(attr(_,to,_),_,_)],[],from([(reaches,_)]),where(attr(_,airline,_)=cte('UA',string(_))),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(_,frm,_),_,_),expr(attr(_,to,_),_,_)],[],from([(reaches,_)]),where(attr(_,airline,_)=cte('AA',string(_))),group_by([]),having(true),order_by([],[])),_)),_),[(select(all,top(all),no_offset,[expr(attr(_,airline,_),_,_),expr(attr(_,frm,_),_,_),expr(attr(_,to,_),_,_)],[],from([(flights,_)]),where(true),group_by([]),having(true),order_by([],[])),triples(airline:_,frm:_,to:_)),(union(distinct,(select(all,top(all),no_offset,*,[],from([(triples,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(triples,airline,_),_,_),expr(attr(triples,frm,_),_,_),expr(attr(reaches,to,_),_,_)],[],from([(triples,_),(reaches,_)]),where(and(attr(triples,to,_)=attr(reaches,frm,_),attr(triples,airline,_)=attr(reaches,airline,_))),group_by([]),having(true),order_by([],[])),_)),reaches(airline:_,frm:_,to:_))]),_),reach(frm:_,to:_)),
+    (with((select(all,top(all),no_offset,*,[],from([('Reaches',_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(union(distinct,(select(all,top(all),no_offset,[expr(attr(_,frm,_),_,_),expr(attr(_,to,_),_,_)],[],from([(flights,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr('R1',frm,_),_,_),expr(attr('R2',to,_),_,_)],[],from([('Reaches',['R1'|_]),('Reaches',['R2'|_])]),where(attr('R1',to,_)=attr('R2',frm,_)),group_by([]),having(true),order_by([],[])),_)),'Reaches'(frm:_,to:_))]),_),
+    create_view(sql,(with((except(distinct,(select(all,top(all),no_offset,[expr(attr(_,frm,_),_,_),expr(attr(_,to,_),_,_)],[],from([('Reaches',_)]),where(attr(_,airline,_)=cte('UA',string(_))),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(_,frm,_),_,_),expr(attr(_,to,_),_,_)],[],from([('Reaches',_)]),where(attr(_,airline,_)=cte('AA',string(_))),group_by([]),having(true),order_by([],[])),_)),_),[(select(all,top(all),no_offset,[expr(attr(_,airline,_),_,_),expr(attr(_,frm,_),_,_),expr(attr(_,to,_),_,_)],[],from([(flights,_)]),where(true),group_by([]),having(true),order_by([],[])),'Triples'(airline:_,frm:_,to:_)),(union(distinct,(select(all,top(all),no_offset,*,[],from([('Triples',_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr('Triples',airline,_),_,_),expr(attr('Triples',frm,_),_,_),expr(attr('Reaches',to,_),_,_)],[],from([('Triples',_),('Reaches',_)]),where(and(attr('Triples',to,_)=attr('Reaches',frm,_),attr('Triples',airline,_)=attr('Reaches',airline,_))),group_by([]),having(true),order_by([],[])),_)),'Reaches'(airline:_,frm:_,to:_))]),_),reach(frm:_,to:_)),
     (with((select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(odd,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(union(all,(select(all,top(all),no_offset,[expr(cte(0,number(H)),_,number(H))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,[expr(attr(odd,x,_)+cte(1,number(_)),_,number(_))],[],from([(odd,_)]),where(attr(_,x,_)<cte(10,number(_))),group_by([]),having(true),order_by([],[])),_)),even(x:_)),(select(all,top(all),no_offset,[expr(attr(even,x,_)+cte(1,number(_)),_,number(_))],[],from([(even,_)]),where(attr(_,x,_)<cte(10,number(_))),group_by([]),having(true),order_by([],[])),odd(x:_))]),_),
     (with((select(all,top(all),no_offset,*,[],from([(p,_)]),where(true),group_by([]),having(true),order_by([],[])),_),[(except(distinct,(select(all,top(all),no_offset,*,[],from([(r,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(q,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),p(x:_)),(except(distinct,(select(all,top(all),no_offset,*,[],from([(r,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(p,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),q(x:_))]),_),
     (with((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(t,_),(media,_)]),where(attr(_,a,_)>attr(_,m,_)),group_by([]),having(true),order_by([],[])),_),[(select(all,top(all),no_offset,[expr(avg(attr(_,a,_)),_,number(float))],[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),media(m:_))]),_),
@@ -3185,8 +3200,8 @@ test095 :-
     insert_into(t2,[a2,b2],[[cte(1,number(_)),cte('Ventas',string(_))],[cte(2,number(_)),cte('Contabilidad',string(_))]]),
     insert_into(t3,[a3,b3,c3],[[cte('1',string(_)),cte(n1,string(_)),cte(d1,string(_))],[cte('2',string(_)),cte(n2,string(_)),cte(d2,string(_))]]),
     insert_into(t1,[a1],[[attr(_,default,_)]]),
-    insert_into(t3,[a3,b3,c3],[[cte(time(12,0,1),datetime(time)),cte(2.5,number(float)),cte(-1,number(_))],[cte(date(2012,1,1),datetime(date)),attr(_,default,_),cte('A',string(_))]]),
-    insert_into(t1,[a1],[[cte(datetime(-2022,6,1,13,45,30),datetime(datetime))],[cte(datetime(2023,6,17,17,35,45),datetime(datetime))]]),
+    insert_into(t3,[a3,b3,c3],[[cte(time(12,0,1),datetime(time)),cte(2.5,number(float)),cte(-1,number(_))],[cte(date(2012,1,1),datetime(date)),attr(_,'DEFAULT',_),cte('A',string(_))]]),
+    insert_into('T1',[],[[cte(datetime(-2022,6,1,13,45,30),datetime(datetime))],[cte(datetime(2023,6,17,17,35,45),datetime(datetime))]]),
     insert_into(t1,[a1],[[cte(-0.013000000000000003,number(float))]]),
     insert_into(t3,[a3,b3,c3],[[cte(1,number(_)),cte(2,number(_)),cte(a,string(_))]]),
     insert_into(t2,[a3,b3,c3],[[cte(1,number(_)),cte(2,number(_)),cte(a,string(_))]]),
@@ -3282,7 +3297,7 @@ test110 :-
     delete_from((t,_),or(and(attr(_,status,_)=cte(active,string(_)),attr(_,city,_)=cte('London',string(_))),attr(_,age,_)<cte(30,number(_)))),
     update((t,_),[expr(a,_,string),expr(cte(1,number(A)),_,number(A))],true),
     update((t1,[d,_]),[expr(a,_,string),expr(cte(1,number(B)),_,number(B))],true),
-    update((empleados,_),[expr(sueldo,_,string),expr(attr(_,sueldo,_)*cte(1.1,number(float)),_,number(_))],true),
+    update(('Empleados',_),[expr('Sueldo',_,string),expr(attr(_,'Sueldo',_)*cte(1.1,number(float)),_,number(_))],true),
     update((t1,[c,_]),[expr(a,_,string),expr((select(all,top(all),no_offset,[expr(attr(_,b,_),_,_)],[],from([(s,_)]),where(attr(s,a,_)=attr(c,a,_)),group_by([]),having(true),order_by([],[])),_),_,_)],attr(_,a,_)=cte(1,number(_)))]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3353,9 +3368,9 @@ test122 :-
     (select(all,top(all),no_offset,[expr(cast(cte('1',string(_)),number(float)),_,number(float))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cast(month(cte(date(2017,2,1),datetime(date))),string(varchar)),_,string(varchar))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(datetime_sub(cte(date(2017,2,1),datetime(date)),cte(date(2016,2,1),datetime(date))),_,number(integer))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(datetime_sub(current_time,attr(_,current_time,_)),_,datetime(time))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(datetime_sub(current_time,current_time),_,number(integer))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(iif(count>cte(0,number(_)),cte(ok,string(_)),cte(error,string(_))),_,_)],[],from([(except(distinct,(select(all,top(all),no_offset,*,[],from([(t,_)]),where(true),group_by([]),having(true),order_by([],[])),_),(select(all,top(all),no_offset,*,[],from([(s,_)]),where(true),group_by([]),having(true),order_by([],[])),_)),_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(case([(cte(1,number(_))=cte(1,number(_)),cte(a,string(_)))],cte(b,string(D))),_,string(D))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(case([(cte(1,number(F))=cte(1,number(F)),cte(a,string(_)))],cte(b,string(D))),_,string(D))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(case(cte(1,number(_)),[(cte(1,number(_)),cte(a,string(_)))],cte(b,string(E))),_,string(E))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     create_or_replace_table(e(a:number(integer),b:number(float)),[true,default(b,pi/cte(2,number(_)),number(float))]),
     (select(all,top(all),no_offset,[expr(datetime_sub(cte(date(2017,2,1),datetime(date)),cte(1,number(integer))),_,datetime(date))],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
@@ -3440,8 +3455,8 @@ test136 :-
     [(select(all,top(all),no_offset,[expr(cte(1,number(A)),_,number(A))],[v],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,r,_),_,_)],[v],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(attr(_,r,_),_,_)],[select],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[and],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr((select(all,top(all),no_offset,[expr(attr(_,into,_),into,_)],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),_,_)],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[aND],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr((select(all,top(all),no_offset,[expr(attr(_,'INTO',_),into,_)],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),_,_)],[],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(2,number(B)),_,number(B))],[r,e],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(3,number(C)),_,number(C))],['Select'],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
     (select(all,top(all),no_offset,[expr(cte(4,number(D)),_,number(D))],[or],from([(dual,_)]),where(true),group_by([]),having(true),order_by([],[])),_),
@@ -3470,9 +3485,9 @@ test140 :-
   test(parser, lex_parse, 'test/test028.sql', 
     [create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[as|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_)),
     insert_into(emp,[],[[cte('987',string(_)),cte(2500,number(_)),cte('987',string(_))],[cte('456',string(_)),cte(2000,number(_)),cte('456',string(_))],[cte('123',string(_)),cte(1000,number(_)),cte('456',string(_))],[cte('235',string(_)),cte(1000,number(_)),cte('987',string(_))],[cte('567',string(_)),cte(800,number(_)),cte('123',string(_))],[cte('678',string(_)),cte(600,number(_)),cte('567',string(_))],[cte('789',string(_)),cte(500,number(_)),cte('678',string(_))]]),
-    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)div cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)mod cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
-    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)rem cte(2,number(integer))=cte(0,number(_))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)div cte(2,number(integer))=cte(0,number(integer))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)mod cte(2,number(integer))=cte(0,number(integer))),group_by([]),having(true),order_by([],[])),_),
+    (select(all,top(all),no_offset,[expr(attr(_,x,_),_,_)],[],from([(b,_)]),where(attr(_,x,_)rem cte(2,number(integer))=cte(0,number(integer))),group_by([]),having(true),order_by([],[])),_),
     create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[div|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_)),
     create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[rem|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_)),
     create_table_as((select(all,top(all),no_offset,[expr(attr(_,a,_),_,_)],[],from([(n,[mod|_])]),where(true),group_by([]),having(true),order_by([],[])),_),t3(a3:_,b3:_,c3:_))]).

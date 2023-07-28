@@ -1,24 +1,11 @@
-/*assume select 1 not in l(a) select * from l;
-
-create table "t"("a" int);
-
-create table [t]([a] int);
-
-create table `t`([a] int);
-
-
-select 1 into i;
-select r into i;
-
-*/
-
---SELECT * FROM t WHERE a=$v$;
---[1]
---[%]
---[+] 
---[>]
---[t\[]
---[t\ []
---[t\]]
-
-ROLLBACK TO SAVEPOINT "s""p1"
+commit;
+Commit;
+ComMit;
+coMMit;
+describe soLb;
+describe sELecT;
+describe SeLEcT;
+savepoint a ;
+create table t3(a3,b3,c3) aS select a from n as not;
+savepoint a;
+savepoint e"2;

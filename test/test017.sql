@@ -58,7 +58,7 @@ select distinct * from t fetch first 1 rows only;
 
 
 --correct but can't check with test.pl (i guess is because min() and max())
---select department,max(salary) from employee group by department;
+--select d,max(s) from e group by d;
 --select t.a from t join r on t.a=r.a where t.a>=all (select min(a) from s);
 
 /* %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

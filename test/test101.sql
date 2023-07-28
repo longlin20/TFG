@@ -1,4 +1,2 @@
-/*select 1 into i;
-SELECT * FROM t WHERE a=$v;*/
---"\"""reer""\""
---"reer
+select current_time-current_time;
+--select current_time()-current_time();

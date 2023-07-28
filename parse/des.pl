@@ -6,7 +6,8 @@
                 function/6,
                 get_null_id/1,
                 my_operator/5,
-                my_infix_operator/7]).
+                my_infix_operator/7,
+                evaluable_symbol/1]).
 
 :- dynamic(null_id/1).        % Integer identifier for nulls, represented as '$NULL'(i), where 'i' is the null identifier
 
@@ -20,6 +21,13 @@ infix(P,yfx,P,P-1).
 posfix(P,xf,P-1).
 posfix(P,yf,P).
 
+my_function(SF,PF,Type,A,Ts) :- 
+  function(F,PF,_,Type,Ts,A),
+  atom_codes(F,SF).
+
+my_function(SF,PF,A,Ts) :- 
+  function(F,PF,_,_,Ts,A),
+  atom_codes(F,SF).
 
 my_aggregate_function(SF,PF,T,A) :- 
   function(F,PF,_,aggregate,[T|_],A),
@@ -186,3 +194,16 @@ my_infix_operator('+',"+",'datetime_add',[datetime(DT),datetime(DT),number(integ
 my_infix_operator('+',"+",'datetime_add',[datetime(DT),number(integer),datetime(DT)],'Date/time addition between number and datetime',500,yfx).
 my_infix_operator('-',"-",'datetime_sub',[datetime(DT),datetime(DT),number(integer)],'Date/time subtraction between datetime and number',500,yfx).
 my_infix_operator('-',"-",'datetime_sub',[number(integer),datetime(DT),datetime(DT)],'Date/time subtraction between datetimes',500,yfx).
+
+evaluable_symbol(Var) :-
+  var(Var),
+  !,
+  fail.
+evaluable_symbol(Name) :-
+  arithmetic_constant(Name),
+  !.
+evaluable_symbol(Name) :-
+  my_function(_,Name,0,_).
+
+arithmetic_constant(Name) :-
+  function(Name,_,_,arithmetic_cte,_,0).

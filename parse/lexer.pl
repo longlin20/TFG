@@ -1,6 +1,7 @@
 :- module(lexer,
           [ lex/2,
-            lex/1 ]).
+            lex/1,
+            is_lowercase_letter_code/1 ]).
 
 :- use_module(library(edcg)).
 		  
@@ -44,8 +45,6 @@ edcg:pred_info(add_col,  1, [position]).
 edcg:pred_info(get_pos,  1, [position]).
 
 %%%% End of extended DCG declarations
-
-:- discontiguous punctuation/5.
 
 % Lexical categories:
 %
@@ -156,13 +155,13 @@ separator(square_brackets_id(_), no) -->>
 % IDENTIFIER BUT SEMICOLON and QUOTES IDENTIFIER BUT QUOTES 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 separator(cmd(savepoint/_), Id) -->>
+  quotes_identifier_but_quotes(Id),
+  !.
+
+separator(cmd(savepoint/_), Id) -->>
   identifier_but_semicolon(Id),
   !.
 
-
-separator(cmd(savepoint/_), Id) -->>
-  quotes_identifier_but_quotes(Id),
-  !.
 
 separator(cmd(savepoint/_), no) -->>
   !,
@@ -250,8 +249,6 @@ token(Identifier) -->>
   square_brackets_identifier(Identifier),
   !.
 
-
-
 token(comment(Comment)) -->> % SQL comments: include the rest of the line as the comment
   sql_comment_start,
   !,
@@ -263,30 +260,29 @@ token(comment(Comment)) -->>
   !,
   multi_line_comment_content(Comment, 1). % Add nesting level
 
-%neither single quotes(string) 
-% nor double quotes(refer to an id sensitive to upper and lower case)
 
 token(Delimiter) -->>
   delimiter(Delimiter),
-  { Delimiter \== punct('\''),
-    Delimiter \== punct('"')/*, 
-    Delimiter \== punct('`')*/}, % Excludes single quotes and double quotes
   !.
 
-token(cmd_fn(Command/Case)) -->>
-  command_function(Command/Case),
+token(cmd_fn(Command/Original)) -->>
+  command_function(Command/Chars),
+  {atom_chars(Original, Chars)},
   !.
 
-token(cmd(Command/Case)) -->>
-  command(Command/Case),
+token(cmd(Command/Original)) -->>
+  command(Command/Chars),
+  {atom_chars(Original, Chars)},
   !.
 
-token(fn(Function/Case)) -->>
-  function(Function/Case),
+token(fn(Function/Original)) -->>
+  function(Function/Chars),
+  {atom_chars(Original, Chars)},
   !.
   
-token(textual_op(Operator/Case)) -->>
-  textual_operator(Operator/Case),
+token(textual_op(Operator/Original)) -->>
+  textual_operator(Operator/Chars),
+  {atom_chars(Original, Chars)},
   !.
 
 token(id(Identifier/Case)) -->>
@@ -393,64 +389,12 @@ comparison_operator('<')   -->> "<",   !, inc_col.
 %mod trantando como fn
 %textual_operator('mod')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-textual_operator('and'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("nd"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-textual_operator('or'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('o', Char); char_code('O', Char)), C == Char },
-  lc("r"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-textual_operator('not'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("ot"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-textual_operator('xor'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('x', Char); char_code('X', Char)), C == Char },
-  lc("or"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-textual_operator('rem'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("em"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-textual_operator('div'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("iv"),
-  not_more_char,
-  !,
-  add_col(3).
+textual_operator('and'/Original) -->>  lc("and", Original),  not_more_char, !, add_col(3).
+textual_operator('or'/Original) -->>   lc("or", Original),   not_more_char, !, add_col(2).
+textual_operator('not'/Original) -->>  lc("not", Original),  not_more_char, !, add_col(3).
+textual_operator('xor'/Original) -->>  lc("xor", Original),  not_more_char, !, add_col(3).
+textual_operator('rem'/Original) -->>  lc("rem", Original),  not_more_char, !, add_col(3).
+textual_operator('div'/Original) -->>  lc("div", Original),  not_more_char, !, add_col(3).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PUNCTUATION
@@ -466,1958 +410,226 @@ punctuation('.') -->> ".",   !, inc_col.
 punctuation(';') -->> ";",   !, inc_col.
 punctuation('::') -->> "::", !, add_col(2).
 punctuation(':') -->> ":",   !, inc_col.
+%punctuation('comilla') -->> "'",  !, inc_col.
 %punctuation('"') -->> """",  !, inc_col.
 punctuation('nl') -->> "\n", !, inc_line.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % COMMAND or FUNCTION 
 % those can be commands and functions at the same time
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-command_function('replace'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("eplace"),
-  not_more_char,
-  !,
-  add_col(7).
-
-command_function('float'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("loat"),
-  not_more_char,
-  !,
-  add_col(5).
-
-command_function('left'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("eft"),
-  not_more_char,
-  !,
-  add_col(4).
-
-command_function('right'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("ight"),
-  not_more_char,
-  !,
-  add_col(5).
+command_function('replace'/Original) -->> lc("replace", Original),  not_more_char, !, add_col(7).
+command_function('float'/Original) -->>   lc("float", Original),    not_more_char, !, add_col(5).
+command_function('left'/Original) -->>    lc("left", Original),     not_more_char, !, add_col(4).
+command_function('right'/Original) -->>   lc("right", Original),    not_more_char, !, add_col(5).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % COMMAND
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-command('add'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("dd"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('all'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("ll"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('alter'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("lter"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('any'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("ny"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('ascending'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("scending"),
-  not_more_char,
-  !,
-  add_col(9).
-
-
-command('asc'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("sc"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('assume'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("ssume"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('as'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("s"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('between'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('b', Char); char_code('B', Char)), C == Char },
-  lc("etween"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('bc'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('b', Char); char_code('B', Char)), C == Char },
-  lc("c"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('by'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('b', Char); char_code('B', Char)), C == Char },
-  lc("y"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('candidate'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("andidate"),
-  not_more_char,
-  !,
-  add_col(9).
-
-
-command('cascade'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("ascade"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('character'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("haracter"),
-  not_more_char,
-  !,
-  add_col(9).
-
-
-command('char'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("har"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('check'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("heck"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('column'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("olumn"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('commit'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("ommit"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('constraints'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("onstraints"),
-  not_more_char,
-  !,
-  add_col(11).
-
-
-command('constraint'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("onstraint"),
-  not_more_char,
-  !,
-  add_col(10).
-
-
-command('create'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("reate"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('databases'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("atabases"),
-  not_more_char,
-  !,
-  add_col(9).
-
-
-command('database'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("atabase"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('data'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("ata"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('datetime'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("atetime"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('date'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("ate"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('decimal'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("ecimal"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('default'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("efault"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('delete'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("elete"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('descending'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("escending"),
-  not_more_char,
-  !,
-  add_col(10).
-
-
-command('desc'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("esc"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('describe'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("escribe"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('determined'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("etermined"),
-  not_more_char,
-  !,
-  add_col(10).
-
-
-command('distinct'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("istinct"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('division'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("ivision"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('drop'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("rop"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('else'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('e', Char); char_code('E', Char)), C == Char },
-  lc("lse"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('end'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('e', Char); char_code('E', Char)), C == Char },
-  lc("nd"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('escape'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('e', Char); char_code('E', Char)), C == Char },
-  lc("scape"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('except'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('e', Char); char_code('E', Char)), C == Char },
-  lc("xcept"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('exists'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('e', Char); char_code('E', Char)), C == Char },
-  lc("xists"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('extract'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('e', Char); char_code('E', Char)), C == Char },
-  lc("xtract"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('false'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("alse"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('fetch'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("etch"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('first'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("irst"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('foreign'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("oreign"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('from'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("rom"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('full'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("ull"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('group'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('g', Char); char_code('G', Char)), C == Char },
-  lc("roup"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('having'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('h', Char); char_code('H', Char)), C == Char },
-  lc("aving"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('if'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("f"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('inner'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("nner"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('insert'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("nsert"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('intersect'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("ntersect"),
-  not_more_char,
-  !,
-  add_col(9).
-
-
-command('into'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("nto"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('integer'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("nteger"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('int'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("nt"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('in'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("n"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('is'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("s"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('join'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('j', Char); char_code('J', Char)), C == Char },
-  lc("oin"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('key'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('k', Char); char_code('K', Char)), C == Char },
-  lc("ey"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('like'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("ike"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('limit'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("imit"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('minus'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('m', Char); char_code('M', Char)), C == Char },
-  lc("inus"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('natural'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("atural"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('no'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("o"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('null'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("ull"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('number'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("umber"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('numeric'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("umeric"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('offset'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('o', Char); char_code('O', Char)), C == Char },
-  lc("ffset"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('only'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('o', Char); char_code('O', Char)), C == Char },
-  lc("nly"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('on'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('o', Char); char_code('O', Char)), C == Char },
-  lc("n"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('order'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('o', Char); char_code('O', Char)), C == Char },
-  lc("rder"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('outer'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('o', Char); char_code('O', Char)), C == Char },
-  lc("uter"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('primary'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('p', Char); char_code('P', Char)), C == Char },
-  lc("rimary"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('real'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("eal"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('recursive'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("ecursive"),
-  not_more_char,
-  !,
-  add_col(9).
-
-
-command('references'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("eferences"),
-  not_more_char,
-  !,
-  add_col(10).
-
-
-command('rename'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("ename"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('restrict'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("estrict"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('rollback'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("ollback"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('rows'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("ows"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('savepoint'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("avepoint"),
-  not_more_char,
-  " ",
-  !,
-  add_col(10). %savepoint + space
-
-command('savepoint'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("avepoint"),
-  not_more_char,
-  !,
-  add_col(9).
-
-
-command('select'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("elect"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('set'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("et"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('show'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("how"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('smallint'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("mallint"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('some'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("ome"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('string'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("tring"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('tables'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("ables"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('table'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("able"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('text'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("ext"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('then'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("hen"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('timestamp'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("imestamp"),
-  not_more_char,
-  !,
-  add_col(9).
-
-
-command('time'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("ime"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('type'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("ype"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('top'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("op"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-command('to'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("o"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-command('true'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("rue"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('union'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('u', Char); char_code('U', Char)), C == Char },
-  lc("nion"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('unique'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('u', Char); char_code('U', Char)), C == Char },
-  lc("nique"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('update'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('u', Char); char_code('U', Char)), C == Char },
-  lc("pdate"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('using'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('u', Char); char_code('U', Char)), C == Char },
-  lc("sing"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('values'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('v', Char); char_code('V', Char)), C == Char },
-  lc("alues"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-command('varchar2'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('v', Char); char_code('V', Char)), C == Char },
-  lc("archar2"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-command('varchar'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('v', Char); char_code('V', Char)), C == Char },
-  lc("archar"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-command('views'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('v', Char); char_code('V', Char)), C == Char },
-  lc("iews"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('view'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('v', Char); char_code('V', Char)), C == Char },
-  lc("iew"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('when'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('w', Char); char_code('W', Char)), C == Char },
-  lc("hen"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('where'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('w', Char); char_code('W', Char)), C == Char },
-  lc("here"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-command('with'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('w', Char); char_code('W', Char)), C == Char },
-  lc("ith"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-command('work'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('w', Char); char_code('W', Char)), C == Char },
-  lc("ork"),
-  not_more_char,
-  !,
-  add_col(4).
+command('add'/Original) -->>          lc("add", Original),          not_more_char, !, add_col(3).
+command('all'/Original) -->>          lc("all", Original),          not_more_char, !, add_col(3).
+command('alter'/Original) -->>        lc("alter", Original),        not_more_char, !, add_col(5).
+command('any'/Original) -->>          lc("any", Original),          not_more_char, !, add_col(3).
+command('ascending'/Original) -->>    lc("ascending", Original),    not_more_char, !, add_col(9).
+command('asc'/Original) -->>          lc("asc", Original),          not_more_char, !, add_col(3).
+command('assume'/Original) -->>       lc("assume", Original),       not_more_char, !, add_col(6).
+command('as'/Original) -->>           lc("as", Original),           not_more_char, !, add_col(2).
+command('between'/Original) -->>      lc("between", Original),      not_more_char, !, add_col(7).
+command('bc'/Original) -->>           lc("bc", Original),           not_more_char, !, add_col(2).
+command('by'/Original) -->>           lc("by", Original),           not_more_char, !, add_col(2).
+command('candidate'/Original) -->>    lc("candidate", Original),    not_more_char, !, add_col(9).
+command('cascade'/Original) -->>      lc("cascade", Original),      not_more_char, !, add_col(7).
+command('character'/Original) -->>    lc("character", Original),    not_more_char, !, add_col(9).
+command('char'/Original) -->>         lc("char", Original),         not_more_char, !, add_col(4).
+command('check'/Original) -->>        lc("check", Original),        not_more_char, !, add_col(5).
+command('column'/Original) -->>       lc("column", Original),       not_more_char, !, add_col(6).
+command('commit'/Original) -->>       lc("commit", Original),       not_more_char, !, add_col(6).
+command('constraints'/Original) -->>  lc("constraints", Original),  not_more_char, !, add_col(11).
+command('constraint'/Original) -->>   lc("constraint", Original),   not_more_char, !, add_col(10).
+command('create'/Original) -->>       lc("create", Original),       not_more_char, !, add_col(6).
+command('databases'/Original) -->>    lc("databases", Original),    not_more_char, !, add_col(9).
+command('database'/Original) -->>     lc("database", Original),     not_more_char, !, add_col(8).
+command('data'/Original) -->>         lc("data", Original),         not_more_char, !, add_col(4).
+command('datetime'/Original) -->>     lc("datetime", Original),     not_more_char, !, add_col(8).
+command('date'/Original) -->>         lc("date", Original),         not_more_char, !, add_col(4).
+command('decimal'/Original) -->>      lc("decimal", Original),      not_more_char, !, add_col(7).
+command('default'/Original) -->>      lc("default", Original),      not_more_char, !, add_col(7).
+command('delete'/Original) -->>       lc("delete", Original),       not_more_char, !, add_col(6).
+command('descending'/Original) -->>   lc("descending", Original),   not_more_char, !, add_col(10).
+command('desc'/Original) -->>         lc("desc", Original),         not_more_char, !, add_col(4).
+command('describe'/Original) -->>     lc("describe", Original),     not_more_char, !, add_col(8).
+command('determined'/Original) -->>   lc("determined", Original),   not_more_char, !, add_col(10).
+command('distinct'/Original) -->>     lc("distinct", Original),     not_more_char, !, add_col(8).
+command('division'/Original) -->>     lc("division", Original),     not_more_char, !, add_col(8).
+command('drop'/Original) -->>         lc("drop", Original),         not_more_char, !, add_col(4).
+command('else'/Original) -->>         lc("else", Original),         not_more_char, !, add_col(4).
+command('end'/Original) -->>          lc("end", Original),          not_more_char, !, add_col(3).
+command('escape'/Original) -->>       lc("escape", Original),       not_more_char, !, add_col(6).
+command('except'/Original) -->>       lc("except", Original),       not_more_char, !, add_col(6).
+command('exists'/Original) -->>       lc("exists", Original),       not_more_char, !, add_col(6).
+command('extract'/Original) -->>      lc("extract", Original),      not_more_char, !, add_col(7).
+command('false'/Original) -->>        lc("false", Original),        not_more_char, !, add_col(5).
+command('fetch'/Original) -->>        lc("fetch", Original),        not_more_char, !, add_col(5).
+command('first'/Original) -->>        lc("first", Original),        not_more_char, !, add_col(5).
+command('foreign'/Original) -->>      lc("foreign", Original),      not_more_char, !, add_col(7).
+command('from'/Original) -->>         lc("from", Original),         not_more_char, !, add_col(4).
+command('full'/Original) -->>         lc("full", Original),         not_more_char, !, add_col(4).
+command('group'/Original) -->>        lc("group", Original),        not_more_char, !, add_col(5).
+command('having'/Original) -->>       lc("having", Original),       not_more_char, !, add_col(6).
+command('if'/Original) -->>           lc("if", Original),           not_more_char, !, add_col(2).
+command('inner'/Original) -->>        lc("inner", Original),        not_more_char, !, add_col(5).
+command('insert'/Original) -->>       lc("insert", Original),       not_more_char, !, add_col(6).
+command('intersect'/Original) -->>    lc("intersect", Original),    not_more_char, !, add_col(9).
+command('into'/Original) -->>         lc("into", Original),         not_more_char, !, add_col(4).
+command('integer'/Original) -->>      lc("integer", Original),      not_more_char, !, add_col(7).
+command('int'/Original) -->>          lc("int", Original),          not_more_char, !, add_col(3).
+command('in'/Original) -->>           lc("in", Original),           not_more_char, !, add_col(2).
+command('is'/Original) -->>           lc("is", Original),           not_more_char, !, add_col(2).
+command('join'/Original) -->>         lc("join", Original),         not_more_char, !, add_col(4).
+command('key'/Original) -->>          lc("key", Original),          not_more_char, !, add_col(3).
+command('like'/Original) -->>         lc("like", Original),         not_more_char, !, add_col(4).
+command('limit'/Original) -->>        lc("limit", Original),        not_more_char, !, add_col(5).
+command('minus'/Original) -->>        lc("minus", Original),        not_more_char, !, add_col(5).
+command('natural'/Original) -->>      lc("natural", Original),      not_more_char, !, add_col(7).
+command('no'/Original) -->>           lc("no", Original),           not_more_char, !, add_col(2).
+command('null'/Original) -->>         lc("null", Original),         not_more_char, !, add_col(4).
+command('number'/Original) -->>       lc("number", Original),       not_more_char, !, add_col(6).
+command('numeric'/Original) -->>      lc("numeric", Original),      not_more_char, !, add_col(7).
+command('offset'/Original) -->>       lc("offset", Original),       not_more_char, !, add_col(6).
+command('only'/Original) -->>         lc("only", Original),         not_more_char, !, add_col(4).
+command('on'/Original) -->>           lc("on", Original),           not_more_char, !, add_col(2).
+command('order'/Original) -->>        lc("order", Original),        not_more_char, !, add_col(5).
+command('outer'/Original) -->>        lc("outer", Original),        not_more_char, !, add_col(5).
+command('primary'/Original) -->>      lc("primary", Original),      not_more_char, !, add_col(7).
+command('real'/Original) -->>         lc("real", Original),         not_more_char, !, add_col(4).
+command('recursive'/Original) -->>    lc("recursive", Original),    not_more_char, !, add_col(9).
+command('references'/Original) -->>   lc("references", Original),   not_more_char, !, add_col(10).
+command('rename'/Original) -->>       lc("rename", Original),       not_more_char, !, add_col(6).
+command('restrict'/Original) -->>     lc("restrict", Original),     not_more_char, !, add_col(8).
+command('rollback'/Original) -->>     lc("rollback", Original),     not_more_char, !, add_col(8).
+command('rows'/Original) -->>         lc("rows", Original),         not_more_char, !, add_col(4).
+%warning special case savepoint + blanks
+command('savepoint'/Original) -->>    lc("savepoint", Original),    not_more_char, blanks_add, !.
+%only savepoint
+command('savepoint'/Original) -->>    lc("savepoint", Original),    not_more_char, !, add_col(9).
+
+command('select'/Original) -->>       lc("select", Original),       not_more_char, !, add_col(6).
+command('set'/Original) -->>          lc("set", Original),          not_more_char, !, add_col(3).
+command('show'/Original) -->>         lc("show", Original),         not_more_char, !, add_col(4).
+command('smallint'/Original) -->>     lc("smallint", Original),     not_more_char, !, add_col(8).
+command('some'/Original) -->>         lc("some", Original),         not_more_char, !, add_col(4).
+command('string'/Original) -->>       lc("string", Original),       not_more_char, !, add_col(6).
+command('tables'/Original) -->>       lc("tables", Original),       not_more_char, !, add_col(6).
+command('table'/Original) -->>        lc("table", Original),        not_more_char, !, add_col(5).
+command('text'/Original) -->>         lc("text", Original),         not_more_char, !, add_col(4).
+command('then'/Original) -->>         lc("then", Original),         not_more_char, !, add_col(4).
+command('timestamp'/Original) -->>    lc("timestamp", Original),    not_more_char, !, add_col(9).
+command('time'/Original) -->>         lc("time", Original),         not_more_char, !, add_col(4).
+command('type'/Original) -->>         lc("type", Original),         not_more_char, !, add_col(4).
+command('top'/Original) -->>          lc("top", Original),          not_more_char, !, add_col(3).
+command('to'/Original) -->>           lc("to", Original),           not_more_char, !, add_col(2).
+command('true'/Original) -->>         lc("true", Original),         not_more_char, !, add_col(4).
+command('union'/Original) -->>        lc("union", Original),        not_more_char, !, add_col(5).
+command('unique'/Original) -->>       lc("unique", Original),       not_more_char, !, add_col(6).
+command('update'/Original) -->>       lc("update", Original),       not_more_char, !, add_col(6).
+command('using'/Original) -->>        lc("using", Original),        not_more_char, !, add_col(5).
+command('values'/Original) -->>       lc("values", Original),       not_more_char, !, add_col(6).
+command('varchar2'/Original) -->>     lc("varchar2", Original),     not_more_char, !, add_col(8).
+command('varchar'/Original) -->>      lc("varchar", Original),      not_more_char, !, add_col(7).
+command('views'/Original) -->>        lc("views", Original),        not_more_char, !, add_col(5).
+command('view'/Original) -->>         lc("view", Original),         not_more_char, !, add_col(4).
+command('when'/Original) -->>         lc("when", Original),         not_more_char, !, add_col(4).
+command('where'/Original) -->>        lc("where", Original),        not_more_char, !, add_col(5).
+command('with'/Original) -->>         lc("with", Original),         not_more_char, !, add_col(4).
+command('work'/Original) -->>         lc("work", Original),         not_more_char, !, add_col(4).
      
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % FUNCTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%          
-function('sqrt'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("qrt"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('ln'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("n"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-function('log'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("og"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('exp'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('e', Char); char_code('E', Char)), C == Char },
-  lc("xp"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('sin'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("in"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('cos'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("os"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('tan'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("an"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('cot'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("ot"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('asin'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("sin"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('acos'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("cos"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('atan'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("tan"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('acot'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("cot"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('abs'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("bs"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('mod'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('m', Char); char_code('M', Char)), C == Char },
-  lc("od"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('integer'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("nteger"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-function('sign'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("ign"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('gcd'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('g', Char); char_code('G', Char)), C == Char },
-  lc("cd"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('min'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('m', Char); char_code('M', Char)), C == Char },
-  lc("in"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('max'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('m', Char); char_code('M', Char)), C == Char },
-  lc("ax"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('truncate'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("runcate"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-function('trunc'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("runc"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('float_integer_part'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("loat_integer_part"),
-  not_more_char,
-  !,
-  add_col(18).
-
-
-function('float_fractional_part'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("loat_fractional_part"),
-  not_more_char,
-  !,
-  add_col(21).
-
-
-function('round'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("ound"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('floor'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('f', Char); char_code('F', Char)), C == Char },
-  lc("loor"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('ceiling'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("eiling"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-function('rand'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("and"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('power'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('p', Char); char_code('P', Char)), C == Char },
-  lc("ower"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('avg'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("vg"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('avg_distinct'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("vg_distinct"),
-  not_more_char,
-  !,
-  add_col(12).
-
-
-function('count'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("ount"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('count_distinct'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("ount_distinct"),
-  not_more_char,
-  !,
-  add_col(14).
-
-
-function('sum'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("um"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('sum_distinct'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("um_distinct"),
-  not_more_char,
-  !,
-  add_col(12).
-
-
-function('times'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("imes"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('times_distinct'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("imes_distinct"),
-  not_more_char,
-  !,
-  add_col(14).
-
-
-function('pi'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('p', Char); char_code('P', Char)), C == Char },
-  lc("i"),
-  not_more_char,
-  !,
-  add_col(2).
-
-
-function('e'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('e', Char); char_code('E', Char)), C == Char },
-  not_more_char,
-  !,
-  inc_col.
-
-
-function('length'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("ength"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-function('concat'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("oncat"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-function('instr'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("nstr"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('lower'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("ower"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('lpad'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("pad"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('ltrim'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("trim"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('repeat'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("epeat"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-function('reverse'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("everse"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-function('rpad'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("pad"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('rtrim'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('r', Char); char_code('R', Char)), C == Char },
-  lc("trim"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('space'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("pace"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('substr'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("ubstr"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-function('trim'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("rim"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('upper'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('u', Char); char_code('U', Char)), C == Char },
-  lc("pper"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('year'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('y', Char); char_code('Y', Char)), C == Char },
-  lc("ear"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('month'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('m', Char); char_code('M', Char)), C == Char },
-  lc("onth"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('day'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("ay"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('hour'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('h', Char); char_code('H', Char)), C == Char },
-  lc("our"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('minute'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('m', Char); char_code('M', Char)), C == Char },
-  lc("inute"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-function('second'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("econd"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-function('last_day'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("ast_day"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-function('to_char'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("o_char"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-function('to_date'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('t', Char); char_code('T', Char)), C == Char },
-  lc("o_date"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-function('sysdate'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('s', Char); char_code('S', Char)), C == Char },
-  lc("ysdate"),
-  not_more_char,
-  !,
-  add_col(7).
-
-
-function('current_date'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("urrent_date"),
-  not_more_char,
-  !,
-  add_col(12).
-
-
-function('current_time'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("urrent_time"),
-  not_more_char,
-  !,
-  add_col(12).
-
-
-function('current_datetime'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("urrent_datetime"),
-  not_more_char,
-  !,
-  add_col(16).
-
-
-function('datetime_add'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("atetime_add"),
-  not_more_char,
-  !,
-  add_col(12).
-
-
-function('datetime_sub'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('d', Char); char_code('D', Char)), C == Char },
-  lc("atetime_sub"),
-  not_more_char,
-  !,
-  add_col(12).
-
-
-function('add_months'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('a', Char); char_code('A', Char)), C == Char },
-  lc("dd_months"),
-  not_more_char,
-  !,
-  add_col(10).
-
-
-function('cast'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("ast"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('coalesce'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("oalesce"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-function('greatest'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('g', Char); char_code('G', Char)), C == Char },
-  lc("reatest"),
-  not_more_char,
-  !,
-  add_col(8).
-
-
-function('least'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('l', Char); char_code('L', Char)), C == Char },
-  lc("east"),
-  not_more_char,
-  !,
-  add_col(5).
-
-
-function('nvl'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("vl"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('nvl2'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("vl2"),
-  not_more_char,
-  !,
-  add_col(4).
-
-
-function('nullif'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('n', Char); char_code('N', Char)), C == Char },
-  lc("ullif"),
-  not_more_char,
-  !,
-  add_col(6).
-
-
-function('iif'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('i', Char); char_code('I', Char)), C == Char },
-  lc("if"),
-  not_more_char,
-  !,
-  add_col(3).
-
-
-function('case'/Case) -->>
-  [C],
-  {is_lowercase_letter_code(C) -> Case = l; Case = u},
-  { (Case == l -> char_code('c', Char); char_code('C', Char)), C == Char },
-  lc("ase"),
-  not_more_char,
-  !,
-  add_col(4).
-
-%to lowercase
-lc([Code|Codes]) -->>
-  [C],
-  {to_lowercase_code(C, Code)},
-  lc(Codes).
-lc([]) -->>
+function('sqrt'/Original) -->>                   lc("sqrt", Original),                   not_more_char, !, add_col(4).
+function('ln'/Original) -->>                     lc("ln", Original),                     not_more_char, !, add_col(2).
+function('log'/Original) -->>                    lc("log", Original),                    not_more_char, !, add_col(3).
+function('exp'/Original) -->>                    lc("exp", Original),                    not_more_char, !, add_col(3).
+function('sin'/Original) -->>                    lc("sin", Original),                    not_more_char, !, add_col(3).
+function('cos'/Original) -->>                    lc("cos", Original),                    not_more_char, !, add_col(3).
+function('tan'/Original) -->>                    lc("tan", Original),                    not_more_char, !, add_col(3).
+function('cot'/Original) -->>                    lc("cot", Original),                    not_more_char, !, add_col(3).
+function('asin'/Original) -->>                   lc("asin", Original),                   not_more_char, !, add_col(4).
+function('acos'/Original) -->>                   lc("acos", Original),                   not_more_char, !, add_col(4).
+function('atan'/Original) -->>                   lc("atan", Original),                   not_more_char, !, add_col(4).
+function('acot'/Original) -->>                   lc("acot", Original),                   not_more_char, !, add_col(4).
+function('abs'/Original) -->>                    lc("abs", Original),                    not_more_char, !, add_col(3).
+function('mod'/Original) -->>                    lc("mod", Original),                    not_more_char, !, add_col(3).
+function('integer'/Original) -->>                lc("integer", Original),                not_more_char, !, add_col(7).
+function('sign'/Original) -->>                   lc("sign", Original),                   not_more_char, !, add_col(4).
+function('gcd'/Original) -->>                    lc("gcd", Original),                    not_more_char, !, add_col(3).
+function('min'/Original) -->>                    lc("min", Original),                    not_more_char, !, add_col(3).
+function('max'/Original) -->>                    lc("max", Original),                    not_more_char, !, add_col(3).
+function('truncate'/Original) -->>               lc("truncate", Original),               not_more_char, !, add_col(8).
+function('trunc'/Original) -->>                  lc("trunc", Original),                  not_more_char, !, add_col(5).
+function('float_integer_part'/Original) -->>     lc("float_integer_part", Original),     not_more_char, !, add_col(18).
+function('float_fractional_part'/Original) -->>  lc("float_fractional_part", Original),  not_more_char, !, add_col(21).
+function('round'/Original) -->>                  lc("round", Original),                  not_more_char, !, add_col(5).
+function('floor'/Original) -->>                  lc("floor", Original),                  not_more_char, !, add_col(5).
+function('ceiling'/Original) -->>                lc("ceiling", Original),                not_more_char, !, add_col(7).
+function('rand'/Original) -->>                   lc("rand", Original),                   not_more_char, !, add_col(4).
+function('power'/Original) -->>                  lc("power", Original),                  not_more_char, !, add_col(5).
+function('avg'/Original) -->>                    lc("avg", Original),                    not_more_char, !, add_col(3).
+function('avg_distinct'/Original) -->>           lc("avg_distinct", Original),           not_more_char, !, add_col(12).
+function('count'/Original) -->>                  lc("count", Original),                  not_more_char, !, add_col(5).
+function('count_distinct'/Original) -->>         lc("count_distinct", Original),         not_more_char, !, add_col(14).
+function('sum'/Original) -->>                    lc("sum", Original),                    not_more_char, !, add_col(3).
+function('sum_distinct'/Original) -->>           lc("sum_distinct", Original),           not_more_char, !, add_col(12).
+function('times'/Original) -->>                  lc("times", Original),                  not_more_char, !, add_col(5).
+function('times_distinct'/Original) -->>         lc("times_distinct", Original),         not_more_char, !, add_col(14).
+function('pi'/Original) -->>                     lc("pi", Original),                     not_more_char, !, add_col(2).
+function('e'/Original) -->>                      lc("e", Original),                      not_more_char, !, add_col(1).
+function('length'/Original) -->>                 lc("length", Original),                 not_more_char, !, add_col(6).
+function('concat'/Original) -->>                 lc("concat", Original),                 not_more_char, !, add_col(6).
+function('instr'/Original) -->>                  lc("instr", Original),                  not_more_char, !, add_col(5).
+function('lower'/Original) -->>                  lc("lower", Original),                  not_more_char, !, add_col(5).
+function('lpad'/Original) -->>                   lc("lpad", Original),                   not_more_char, !, add_col(4).
+function('ltrim'/Original) -->>                  lc("ltrim", Original),                  not_more_char, !, add_col(5).
+function('repeat'/Original) -->>                 lc("repeat", Original),                 not_more_char, !, add_col(6).
+function('reverse'/Original) -->>                lc("reverse", Original),                not_more_char, !, add_col(7).
+function('rpad'/Original) -->>                   lc("rpad", Original),                   not_more_char, !, add_col(4).
+function('rtrim'/Original) -->>                  lc("rtrim", Original),                  not_more_char, !, add_col(5).
+function('space'/Original) -->>                  lc("space", Original),                  not_more_char, !, add_col(5).
+function('substr'/Original) -->>                 lc("substr", Original),                 not_more_char, !, add_col(6).
+function('trim'/Original) -->>                   lc("trim", Original),                   not_more_char, !, add_col(4).
+function('upper'/Original) -->>                  lc("upper", Original),                  not_more_char, !, add_col(5).
+function('year'/Original) -->>                   lc("year", Original),                   not_more_char, !, add_col(4).
+function('month'/Original) -->>                  lc("month", Original),                  not_more_char, !, add_col(5).
+function('day'/Original) -->>                    lc("day", Original),                    not_more_char, !, add_col(3).
+function('hour'/Original) -->>                   lc("hour", Original),                   not_more_char, !, add_col(4).
+function('minute'/Original) -->>                 lc("minute", Original),                 not_more_char, !, add_col(6).
+function('second'/Original) -->>                 lc("second", Original),                 not_more_char, !, add_col(6).
+function('last_day'/Original) -->>               lc("last_day", Original),               not_more_char, !, add_col(8).
+function('to_char'/Original) -->>                lc("to_char", Original),                not_more_char, !, add_col(7).
+function('to_date'/Original) -->>                lc("to_date", Original),                not_more_char, !, add_col(7).
+function('sysdate'/Original) -->>                lc("sysdate", Original),                not_more_char, !, add_col(7).
+function('current_date'/Original) -->>           lc("current_date", Original),           not_more_char, !, add_col(12).
+function('current_time'/Original) -->>           lc("current_time", Original),           not_more_char, !, add_col(12).
+function('current_datetime'/Original) -->>       lc("current_datetime", Original),       not_more_char, !, add_col(16).
+function('datetime_add'/Original) -->>           lc("datetime_add", Original),           not_more_char, !, add_col(12).
+function('datetime_sub'/Original) -->>           lc("datetime_sub", Original),           not_more_char, !, add_col(12).
+function('add_months'/Original) -->>             lc("add_months", Original),             not_more_char, !, add_col(10).
+function('cast'/Original) -->>                   lc("cast", Original),                   not_more_char, !, add_col(4).
+function('coalesce'/Original) -->>               lc("coalesce", Original),               not_more_char, !, add_col(8).
+function('greatest'/Original) -->>               lc("greatest", Original),               not_more_char, !, add_col(8).
+function('least'/Original) -->>                  lc("least", Original),                  not_more_char, !, add_col(5).
+function('nvl'/Original) -->>                    lc("nvl", Original),                    not_more_char, !, add_col(3).
+function('nvl2'/Original) -->>                   lc("nvl2", Original),                   not_more_char, !, add_col(4).
+function('nullif'/Original) -->>                 lc("nullif", Original),                 not_more_char, !, add_col(6).
+function('iif'/Original) -->>                    lc("iif", Original),                    not_more_char, !, add_col(3).
+function('case'/Original) -->>                   lc("case", Original),                   not_more_char, !, add_col(4).
+
+lc([Code|Codes], [Char|Chars]) -->>
+  [C],
+  { char_code(Char, C), to_lowercase_code(C, Code)},
+  lc(Codes, Chars).
+lc([], []) -->>
   [].
 
 not_more_char -->>
@@ -2563,11 +775,6 @@ string_codes([Code|Codes]) -->>
 double_quotes_identifier(double_quotes_id(Identifier)) -->>
   """",
   rest_of_double_quotes_id(Identifier).
-double_quotes_identifier(double_quotes_id(Identifier)) -->>
-  """""",
-  !,
-  {atom_codes(Identifier, "\"\"")},
-  add_col(2).
   
 rest_of_double_quotes_id(Identifier) -->>
   letter_no_lc(Code),
@@ -2609,11 +816,6 @@ double_quotes_id_codes([Code|Codes]) -->>
 back_quotes_identifier(back_quotes_id(Identifier)) -->>
   "`",
   rest_of_back_quotes_id(Identifier).
-back_quotes_identifier(back_quotes_id(Identifier)) -->>
-  "``",
-  !,
-  {atom_codes(Identifier, "``")},
-  add_col(2).
 
 rest_of_back_quotes_id(Identifier) -->>
   letter_no_lc(Code),
@@ -2657,12 +859,6 @@ back_quotes_id_codes([Code|Codes]) -->>
 square_brackets_identifier(square_brackets_id(Identifier))  -->>
   "[",
   rest_of_square_brackets_id(Identifier).
-
-square_brackets_identifier(square_brackets_id(Identifier))  -->>
-  "[]",
-  !,
-  {atom_codes(Identifier, "[]")},
-  add_col(2).
 
 rest_of_square_brackets_id(Identifier) -->>
   letter_no_lc(Code),
@@ -2731,7 +927,7 @@ identifier(Identifier/l) -->>
 % Rule to recognize an identifier start by $
 identifier(Identifier/u) -->>
   dollar_sign(CodeDollar), % Allow letters or $ as the first character
-  letter(CodeLetter),
+  letter_no_lc(CodeLetter),
   identifier_chars_star(Codes),
   {append([CodeDollar, CodeLetter], Codes, AllCodes)},
   {atom_codes(Identifier, AllCodes)},
@@ -2739,7 +935,7 @@ identifier(Identifier/u) -->>
   add_col(Length).
 
 identifier(Identifier/u) -->>
-  letter(Code),
+  letter_no_lc(Code),
   identifier_chars_star(Codes),
   {atom_codes(Identifier, [Code|Codes])},
   {length([Code|Codes], Length)},
@@ -2774,13 +970,8 @@ identifier_but_semicolon_codes([]) -->>
   dcg/[32|_], % space
   !.
 identifier_but_semicolon_codes([]) -->>
-  dcg/[34|_], % " double quetes
-  !,
-  {fail}.
-identifier_but_semicolon_codes([]) -->>
   dcg/[59|_], % ;
-  !,
-  {fail}.
+  !.
 identifier_but_semicolon_codes([Code|Codes]) -->>
   [Code],
   inc_col,
@@ -2798,7 +989,6 @@ quotes_identifier_but_quotes(quotes_id_but_quotes(Id)) -->>
   add_col(2),
   {atom_codes(Id, Codes)}.
 
-% remark_codes(-Remark)//
 quotes_identifier_but_quotes_codes([]) -->>
   dcg/[10|_], % Lookahead end of line
   !.
@@ -2819,7 +1009,7 @@ quotes_identifier_but_quotes_codes([]) -->> % No more codes are left to read
 % Zero or more alphanumeric codes
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 identifier_chars_star([Code|Codes]) -->>
-  ( letter(Code)
+  ( letter_no_lc(Code)
   ; digit_code(Code)
   ; underscore(Code)),
   identifier_chars_star(Codes).
@@ -2831,10 +1021,10 @@ letter_no_lc(Code) -->>
   {is_letter_code(Code)}.
 
 % letter(-LetterCode)//
-letter(LetterCode) -->>
+/*letter(LetterCode) -->>
   [Code],
   {is_letter_code(Code),
-   to_lowercase_code(Code, LetterCode)}.
+   to_lowercase_code(Code, LetterCode)}.*/
 
 % is_letter_code(-Code)
 is_letter_code(Code) :-
@@ -2882,7 +1072,6 @@ to_lowercase_code(Code, DCode) :-
   "a" = [DA],
   "A" = [UA],
   DCode is Code + DA - UA.
-
 to_lowercase_code(Code, Code) :-
   (is_number_code(Code); is_underscore_code(Code); is_dollar_sign_code(Code)),
   !.
@@ -2912,16 +1101,45 @@ set_error(Error) -->>
   get_pos(Position):position,
   {set_error('Lexical', Error, Position)}.
 
-/*
-set_error_Syntax(Error) -->>
-  get_pos(Position):position,
-  {set_error('Syntax', Error, Position)}.
-*/
-
 non_visible_code(9).   % Tabulator
 non_visible_code(13).  % carriage return
 
 eoc([], []).
+
+blanks_add -->>
+  add_col(9),
+  blanks.
+
+blanks -->>
+  skip_non_visible,
+  blank,
+  !,
+  blanks_star.
+
+blanks_star -->>
+  blanks,
+  !.
+blanks_star -->>
+  skip_non_visible,
+  [].
+
+blank -->>
+  " ",
+  inc_col:position,
+  !.
+  
+blank -->>
+  "\t",
+  !.
+  
+blank -->>
+  "end_of_file",
+  !.
+
+blank -->>
+  "\n",
+  !,
+  inc_line.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Tests
@@ -2952,46 +1170,46 @@ test005 :-
   test(lexer, lex, "1e1 1e+1 1e-1 1.1e1 1.1e+1 1.1e-1", [float(1,0,1):pos(1,1),float(1,0,1):pos(1,5),float(1,0,-1):pos(1,10),float(1,1,1):pos(1,15),float(1,1,1):pos(1,21),float(1,1,-1):pos(1,28)]). 
 
 test006 :-
-  test(lexer, lex, " """" ""ab"" ""a""""b"" ", [double_quotes_id('""'):pos(1,2),double_quotes_id(ab):pos(1,5),double_quotes_id('a"b'):pos(1,10)]).
+  test(lexer, lex, " ""n"" ""ab"" ""a""""b"" ", [double_quotes_id(n):pos(1,2),double_quotes_id(ab):pos(1,6),double_quotes_id('a"b'):pos(1,11)]).
 
 test007 :-
   test(lexer, lex, "'ab' 1.0", [str(ab):pos(1,1),frac(1, 0):pos(1,6)]).
 
 test008 :-
-  test(lexer, lex, 'test/test001.sql', [cmd(select/u):pos(1,1),id(id/u):pos(1,8),punct(','):pos(1,10),id(age/l):pos(1,12),punct(nl):pos(1,15),cmd(from/u):pos(2,1),id(user1/l):pos(2,6),punct(nl):pos(2,11),cmd(where/u):pos(3,1),id(age/l):pos(3,7),comparison_op(>):pos(3,11),int(18):pos(3,13),punct(;):pos(3,15)]).
+  test(lexer, lex, 'test/test001.sql', [cmd(select/'SELECT'):pos(1,1),id('Id'/u):pos(1,8),punct(','):pos(1,10),id(age/l):pos(1,12),punct(nl):pos(1,15),cmd(from/'FROM'):pos(2,1),id(user1/l):pos(2,6),punct(nl):pos(2,11),cmd(where/'WHERE'):pos(3,1),id(age/l):pos(3,7),comparison_op(>):pos(3,11),int(18):pos(3,13),punct(;):pos(3,15)]).
 
 test009 :-
-  test(lexer, lex, 'test/test002.sql', [cmd(select/u):pos(1,1),id(nombreproducto/u):pos(1,8),punct(','):pos(1,22),id(precio/u):pos(1,24),cmd(from/u):pos(1,31),double_quotes_id('Productos'):pos(1,36),punct(nl):pos(1,47),cmd(where/u):pos(2,1),id(precio/u):pos(2,7),op(-):pos(2,14),punct('('):pos(2,16),cmd(select/l):pos(2,17),fn(avg/u):pos(2,24),punct('('):pos(2,27),id(precio/u):pos(2,28),punct(')'):pos(2,34),cmd(from/u):pos(2,36),id(productos/u):pos(2,41),punct(')'):pos(2,50),punct(;):pos(2,51)]).
+  test(lexer, lex, 'test/test002.sql', [cmd(select/'SELECT'):pos(1,1),id('NombreProducto'/u):pos(1,8),punct(','):pos(1,22),id('Precio'/u):pos(1,24),cmd(from/'FROM'):pos(1,31),double_quotes_id('Productos'):pos(1,36),punct(nl):pos(1,47),cmd(where/'WHERE'):pos(2,1),id('Precio'/u):pos(2,7),op(-):pos(2,14),punct('('):pos(2,16),cmd(select/select):pos(2,17),fn(avg/'AVG'):pos(2,24),punct('('):pos(2,27),id('Precio'/u):pos(2,28),punct(')'):pos(2,34),cmd(from/'FROM'):pos(2,36),id('Productos'/u):pos(2,41),punct(')'):pos(2,50),punct(;):pos(2,51)]).
 
 test010 :-
-  test(lexer, lex, 'test/test003.sql', [double_quotes_id(nOmbre):pos(1,1),double_quotes_id('no"3mbre'):pos(1,10),double_quotes_id('NOMBRE'):pos(1,22),punct(nl):pos(1,30),str(nOmbre):pos(2,1),str(nombre):pos(2,10),str('NOMBRE'):pos(2,19),punct(nl):pos(2,28),id(nombre/l):pos(3,1),id(nombre/l):pos(3,8),id(nombre/u):pos(3,15)]).
+  test(lexer, lex, 'test/test003.sql', [double_quotes_id(nOmbre):pos(1,1),double_quotes_id('no"3mbre'):pos(1,10),double_quotes_id('NOMBRE'):pos(1,22),punct(nl):pos(1,30),str(nOmbre):pos(2,1),str(nombre):pos(2,10),str('NOMBRE'):pos(2,19),punct(nl):pos(2,28),id(nOmbre/l):pos(3,1),id(nombre/l):pos(3,8),id('NOMBRE'/u):pos(3,15)]).
 
 test011 :-
   test(lexer, lex, 'test/test004.sql', [str('X=\'\'\'X'):pos(1,1),id(a/l):pos(1,13),punct(nl):pos(1,14),str(s):pos(2,1),id(b/l):pos(2,5),punct(nl):pos(2,6),str('"s"'):pos(3,1),id(c/l):pos(3,7),punct(nl):pos(3,8),str('"s"s""\''):pos(4,1),punct(nl):pos(4,11),str('It\'s raining outside'):pos(5,1),id(d/l):pos(5,25),punct(nl):pos(5,26),str('O\'Connell'):pos(6,1),punct(nl):pos(6,13),str(' d '):pos(7,1),punct(nl):pos(7,6),str('O\'Connell'):pos(8,1),id(pie/l):pos(8,14),punct(nl):pos(8,17),str(' %e_ '):pos(9,1),punct(nl):pos(9,8),str(''):pos(10,1),punct(nl):pos(10,3),str('_12e'):pos(11,1)]).
       
 test012 :-
-  test(lexer, lex, 'test/test005.sql', [cmd(varchar2/l):pos(1,1),id(a_2/l):pos(1,10),punct(nl):pos(1,13),id(algo_/l):pos(2,1),punct(nl):pos(2,6),id('$t'/u):pos(3,1),id('$t1t'/u):pos(3,4),str('$T1.t'):pos(3,9),double_quotes_id('T.1'):pos(3,17),punct(nl):pos(3,22),id('$v'/u):pos(4,1),str('$V$'):pos(4,4)]).
+  test(lexer, lex, 'test/test005.sql', [cmd(varchar2/varchar2):pos(1,1),id(a_2/l):pos(1,10),punct(nl):pos(1,13),id(algo_/l):pos(2,1),punct(nl):pos(2,6),id('$T'/u):pos(3,1),id('$t1T'/u):pos(3,4),str('$T1.t'):pos(3,9),double_quotes_id('T.1'):pos(3,17),punct(nl):pos(3,22),id('$v'/u):pos(4,1),str('$V$'):pos(4,4)]).
 
 test013 :-
-  test(lexer, lex, 'test/test006.sql', [cmd(select/l):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,69),cmd(from/l):pos(2,1),id(tabla/l):pos(2,6)]).
+  test(lexer, lex, 'test/test006.sql', [cmd(select/select):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,69),cmd(from/from):pos(2,1),id(tabla/l):pos(2,6)]).
 
 test014 :-
-  test(lexer, lex, 'test/test007.sql', [fn(times/l):pos(1,1),cmd(timestamp/l):pos(1,7),cmd(no/l):pos(1,17),textual_op(not/l):pos(1,20),fn(sign/l):pos(1,24),id(timesa/l):pos(1,29),id(times1/l):pos(1,36),punct(nl):pos(1,42),fn(substr/l):pos(2,1),id(substring/l):pos(2,8),punct(nl):pos(2,17)]).
+  test(lexer, lex, 'test/test007.sql', [fn(times/times):pos(1,1),cmd(timestamp/timestamp):pos(1,7),cmd(no/no):pos(1,17),textual_op(not/not):pos(1,20),fn(sign/sign):pos(1,24),id(timesa/l):pos(1,29),id(times1/l):pos(1,36),punct(nl):pos(1,42),fn(substr/substr):pos(2,1),id(substring/l):pos(2,8),punct(nl):pos(2,17)]).
 
 test015 :-
   test(lexer, lex, 'test/test008.sql', [comment('\nEste es un comentario\nh\nde varias lneas\n'):pos(1,1),punct(nl):pos(5,3),int(1):pos(6,1)]).
   
 test016 :-
-  test(lexer, lex, 'test/test009.sql', [cmd(alter/l):pos(1,1),cmd((table)/l):pos(1,7),id(a/l):pos(1,13),cmd(add/l):pos(1,15),cmd(constraint/l):pos(1,20),cmd(primary/l):pos(1,31),cmd(key/l):pos(1,39),punct('('):pos(1,43),id(a/l):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter/l):pos(3,1),cmd((table)/u):pos(3,7),id(b/l):pos(3,13),cmd(drop/l):pos(3,15),cmd(constraint/l):pos(3,20),textual_op(not/l):pos(3,31),cmd(null/l):pos(3,35),id(b/l):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter/l):pos(5,1),cmd((table)/l):pos(5,7),id(d/l):pos(5,13),cmd(add/l):pos(5,15),cmd(constraint/l):pos(5,20),cmd(check/l):pos(5,31),punct('('):pos(5,37),id(a/l):pos(5,38),comparison_op(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
+  test(lexer, lex, 'test/test009.sql', [cmd(alter/alter):pos(1,1),cmd((table)/(table)):pos(1,7),id(a/l):pos(1,13),cmd(add/add):pos(1,15),cmd(constraint/constraint):pos(1,20),cmd(primary/primary):pos(1,31),cmd(key/key):pos(1,39),punct('('):pos(1,43),id(a/l):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter/alter):pos(3,1),cmd((table)/'Table'):pos(3,7),id(b/l):pos(3,13),cmd(drop/drop):pos(3,15),cmd(constraint/constraint):pos(3,20),textual_op(not/not):pos(3,31),cmd(null/null):pos(3,35),id(b/l):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter/alter):pos(5,1),cmd((table)/(table)):pos(5,7),id(d/l):pos(5,13),cmd(add/add):pos(5,15),cmd(constraint/constraint):pos(5,20),cmd(check/check):pos(5,31),punct('('):pos(5,37),id(a/l):pos(5,38),comparison_op(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
 
 test017 :-
-  test(lexer, lex, 'test/test010.sql', [cmd(select/u):pos(1,1),op(*):pos(1,8),cmd(from/u):pos(1,10),id(tabla/l):pos(1,15),cmd(where/u):pos(1,21),id(nombre/l):pos(1,27),comparison_op(=):pos(1,34),str('Juan Prez'):pos(1,36),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(select/u):pos(3,1),op(*):pos(3,8),cmd(from/u):pos(3,10),id(customers/u):pos(3,15),punct(nl):pos(3,24),cmd(where/u):pos(4,1),id(customername/u):pos(4,7),cmd(like/u):pos(4,20),str('a%'):pos(4,25),punct(;):pos(4,29),punct(nl):pos(4,30),punct(nl):pos(5,1),cmd(insert/l):pos(6,1),cmd(into/l):pos(6,8),id(a/l):pos(6,13),cmd(values/l):pos(6,15),punct('('):pos(6,22),str(a1):pos(6,23),punct(')'):pos(6,27),punct(;):pos(6,28)]).
+  test(lexer, lex, 'test/test010.sql', [cmd(select/'SELECT'):pos(1,1),op(*):pos(1,8),cmd(from/'FROM'):pos(1,10),id(tabla/l):pos(1,15),cmd(where/'WHERE'):pos(1,21),id(nombre/l):pos(1,27),comparison_op(=):pos(1,34),str('Juan Prez'):pos(1,36),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(select/'SELECT'):pos(3,1),op(*):pos(3,8),cmd(from/'FROM'):pos(3,10),id('Customers'/u):pos(3,15),punct(nl):pos(3,24),cmd(where/'WHERE'):pos(4,1),id('CustomerName'/u):pos(4,7),cmd(like/'LIKE'):pos(4,20),str('a%'):pos(4,25),punct(;):pos(4,29),punct(nl):pos(4,30),punct(nl):pos(5,1),cmd(insert/insert):pos(6,1),cmd(into/into):pos(6,8),id(a/l):pos(6,13),cmd(values/values):pos(6,15),punct('('):pos(6,22),str(a1):pos(6,23),punct(')'):pos(6,27),punct(;):pos(6,28)]).
 
 test018 :-
-  test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select/l):pos(2,1),op(*):pos(2,8),cmd(from/l):pos(2,10),id(t/l):pos(2,15),punct(','):pos(2,16),id(s/l):pos(2,17),cmd(where/l):pos(2,19),id(t/l):pos(2,25),punct('.'):pos(2,26),id(a/l):pos(2,27),comparison_op(=):pos(2,28),id(s/l):pos(2,29),punct('.'):pos(2,30),id(a/l):pos(2,31),textual_op(and/l):pos(2,33),id(t/l):pos(2,37),punct('.'):pos(2,38),id(b/l):pos(2,39),comparison_op(=):pos(2,40),id(s/l):pos(2,41),punct('.'):pos(2,42),id(b/l):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
+  test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select/select):pos(2,1),op(*):pos(2,8),cmd(from/from):pos(2,10),id(t/l):pos(2,15),punct(','):pos(2,16),id(s/l):pos(2,17),cmd(where/where):pos(2,19),id(t/l):pos(2,25),punct('.'):pos(2,26),id(a/l):pos(2,27),comparison_op(=):pos(2,28),id(s/l):pos(2,29),punct('.'):pos(2,30),id(a/l):pos(2,31),textual_op(and/and):pos(2,33),id(t/l):pos(2,37),punct('.'):pos(2,38),id(b/l):pos(2,39),comparison_op(=):pos(2,40),id(s/l):pos(2,41),punct('.'):pos(2,42),id(b/l):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
 
 test019 :-
-  test(lexer, lex, 'test/test012.sql', [cmd(create/l):pos(1,1),textual_op(or/l):pos(1,8),cmd_fn(replace/l):pos(1,11),cmd(view/l):pos(1,19),id(v1_1/l):pos(1,24),punct('('):pos(1,28),id(a/l):pos(1,29),punct(')'):pos(1,30),cmd((as)/l):pos(1,32),cmd(select/l):pos(1,35),id(t1/l):pos(1,42),punct('.'):pos(1,44),id(a/l):pos(1,45),cmd(from/l):pos(1,47),id(v1_2/l):pos(1,52),id(t1/l):pos(1,57),punct(','):pos(1,59),id(v2_2/l):pos(1,60),id(t2/l):pos(1,65),cmd(where/l):pos(1,68),id(t1/l):pos(1,74),punct('.'):pos(1,76),id(a/l):pos(1,77),comparison_op(=):pos(1,78),id(t2/l):pos(1,79),punct('.'):pos(1,81),id(a/l):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert/l):pos(3,1),cmd(into/l):pos(3,8),id(t/l):pos(3,13),cmd(values/l):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
+  test(lexer, lex, 'test/test012.sql', [cmd(create/create):pos(1,1),textual_op(or/or):pos(1,8),cmd_fn(replace/replace):pos(1,11),cmd(view/view):pos(1,19),id(v1_1/l):pos(1,24),punct('('):pos(1,28),id(a/l):pos(1,29),punct(')'):pos(1,30),cmd((as)/(as)):pos(1,32),cmd(select/select):pos(1,35),id(t1/l):pos(1,42),punct('.'):pos(1,44),id(a/l):pos(1,45),cmd(from/from):pos(1,47),id(v1_2/l):pos(1,52),id(t1/l):pos(1,57),punct(','):pos(1,59),id(v2_2/l):pos(1,60),id(t2/l):pos(1,65),cmd(where/where):pos(1,68),id(t1/l):pos(1,74),punct('.'):pos(1,76),id(a/l):pos(1,77),comparison_op(=):pos(1,78),id(t2/l):pos(1,79),punct('.'):pos(1,81),id(a/l):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert/insert):pos(3,1),cmd(into/into):pos(3,8),id(t/l):pos(3,13),cmd(values/values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
 
 test020 :-
   test(lexer, lex, "a1.2", [id(a1/l):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      
@@ -3021,18 +1239,19 @@ test028 :-
   test(lexer, lex, 'test/test013.sql',  [int(2):pos(1,1),punct(nl):pos(1,2),op(+):pos(2,1),int(2):pos(2,2),punct(nl):pos(2,3),op(-):pos(3,1),int(2):pos(3,2),punct(nl):pos(3,3),frac(2,2):pos(4,1),punct(nl):pos(4,4),op(+):pos(5,1),frac(2,2):pos(5,2),punct(nl):pos(5,5),op(-):pos(6,1),frac(2,2):pos(6,2),punct(nl):pos(6,5),float(2,0,2):pos(7,1),punct(nl):pos(7,4),float(2,0,-2):pos(8,1),punct(nl):pos(8,5),op(-):pos(9,1),float(2,0,2):pos(9,2),punct(nl):pos(9,5),op(-):pos(10,1),float(2,0,2):pos(10,2),punct(nl):pos(10,6),op(-):pos(11,1),float(2,0,-2):pos(11,2),punct(nl):pos(11,6),float(2,2,2):pos(12,1),punct(nl):pos(12,6),float(2,2,-2):pos(13,1),punct(nl):pos(13,7),op(+):pos(14,1),float(2,2,-2):pos(14,2),punct(nl):pos(14,8),op(-):pos(15,1),float(2,2,2):pos(15,2),punct(nl):pos(15,7),op(-):pos(16,1),float(2,2,-2):pos(16,2)]).
 
 test029 :-
-  test(lexer, lex, "delete from t1 /*", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1, 16)))).
+  test(lexer, lex, 'test/test029.sql', [cmd(savepoint/savepoint):pos(1,1),id_but_semicolon('+/&d'):pos(1,11),punct(nl):pos(1,15),cmd(savepoint/savepoint):pos(2,1),id_but_semicolon(e):pos(2,11),punct(;):pos(2,12),id(t/l):pos(2,13),punct(nl):pos(2,14),cmd(savepoint/savepoint):pos(3,1),quotes_id_but_quotes('+/&d3'):pos(3,11),punct(nl):pos(3,18),cmd(savepoint/'Savepoint'):pos(4,1),id_but_semicolon(kkk):pos(4,11),punct(nl):pos(4,14),cmd(savepoint/savepoint):pos(5,1),id_but_semicolon(kkk):pos(5,13),punct(nl):pos(5,16),punct(nl):pos(6,1),cmd(savepoint/savepoint):pos(7,1),id_but_semicolon(kkk):pos(8,1),punct(;):pos(8,5),punct(nl):pos(8,6),cmd(savepoint/savepoint):pos(9,1),id_but_semicolon(kkk):pos(12,2),punct(;):pos(12,5)]).
 
 test030 :-
-  test(lexer, lex, 'test/test029.sql', [cmd(savepoint/l):pos(1,1),id_but_semicolon('+/&d'):pos(1,11),punct(nl):pos(1,15),cmd(savepoint/l):pos(2,1),fn(e/l):pos(2,11),punct(;):pos(2,12),id(t/l):pos(2,13),punct(nl):pos(2,14),cmd(savepoint/l):pos(3,1),quotes_id_but_quotes('+/&d3'):pos(3,11),punct(nl):pos(3,18),cmd(savepoint/u):pos(4,1),id_but_semicolon(kkk):pos(4,11)]).
-
-test031 :-
   test(lexer, lex, "SELECT * FROM t WHERE a=$v$;", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1, 27)))).
 
-test032 :-
-  test(lexer, lex, 'test/test030.sql',  [square_brackets_id('[]'):pos(1,1),punct(nl):pos(1,3),square_brackets_id('t""'):pos(2,1),punct(nl):pos(2,6),square_brackets_id('t['):pos(3,1),punct(nl):pos(3,6),square_brackets_id('t['):pos(4,1),punct(nl):pos(4,6),square_brackets_id('t+1'):pos(5,1),punct(nl):pos(5,6),square_brackets_id('t%2'):pos(6,1),punct(nl):pos(6,6),square_brackets_id('t r w'):pos(7,1),punct(nl):pos(7,8),square_brackets_id('t$1'):pos(8,1),punct(nl):pos(8,6),double_quotes_id('no"'):pos(9,1),double_quotes_id('N"o'):pos(9,8),cmd(select/l):pos(9,15),punct(nl):pos(9,21),back_quotes_id('``'):pos(10,1),punct(nl):pos(10,3),back_quotes_id('t""'):pos(11,1),punct(nl):pos(11,6),back_quotes_id('t`'):pos(12,1),punct(nl):pos(12,6),back_quotes_id('t`'):pos(13,1),punct(nl):pos(13,6),back_quotes_id('t+1'):pos(14,1),punct(nl):pos(14,6),back_quotes_id('t%2'):pos(15,1),punct(nl):pos(15,6),back_quotes_id('t r w'):pos(16,1),punct(nl):pos(16,8),back_quotes_id('t$1'):pos(17,1),punct(nl):pos(17,6)]).
+test031 :-
+  test(lexer, lex, 'test/test030.sql',  [square_brackets_id(t):pos(1,1),punct(nl):pos(1,4),square_brackets_id('t""'):pos(2,1),punct(nl):pos(2,6),square_brackets_id('t['):pos(3,1),punct(nl):pos(3,6),square_brackets_id('t['):pos(4,1),punct(nl):pos(4,6),square_brackets_id('t+1'):pos(5,1),punct(nl):pos(5,6),square_brackets_id('t%2'):pos(6,1),punct(nl):pos(6,6),square_brackets_id('t r w'):pos(7,1),punct(nl):pos(7,8),square_brackets_id('t$1'):pos(8,1),punct(nl):pos(8,6),double_quotes_id('no"'):pos(9,1),double_quotes_id('N"o'):pos(9,8),cmd(select/select):pos(9,15),punct(nl):pos(9,21),back_quotes_id('t'):pos(10,1),punct(nl):pos(10,4),back_quotes_id('t""'):pos(11,1),punct(nl):pos(11,6),back_quotes_id('t`'):pos(12,1),punct(nl):pos(12,6),back_quotes_id('t`'):pos(13,1),punct(nl):pos(13,6),back_quotes_id('t+1'):pos(14,1),punct(nl):pos(14,6),back_quotes_id('t%2'):pos(15,1),punct(nl):pos(15,6),back_quotes_id('t r w'):pos(16,1),punct(nl):pos(16,8),back_quotes_id('t$1'):pos(17,1),punct(nl):pos(17,6)]).
 
-test033 :-
+test032 :-
   test(lexer, lex, "[1]", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1, 1)))).
 
-punctuation('comilla') -->> "'",  !, inc_col.
+test033 :-
+  test(lexer, lex, "savepoint", [cmd(savepoint/savepoint):pos(1,1)]).
+
+test034 :-
+  test(lexer, lex, "delete from t1 /*", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1, 16)))).

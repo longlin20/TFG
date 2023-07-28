@@ -24,12 +24,12 @@ create table "t"("a" int);
 create table [t]([a] int);
 create table c(a string,b string);
 create table edge(origin string,destination string);
-create table flights(airline string,frm string, "to" string,departs int,arrives int);
+create table flights(airline string,frm string, to string,departs int,arrives int);
 CREATE TABLE employee(Name VARCHAR(20), Department VARCHAR(20), Salary INT);
 create table emp(dni string primary key, numdep int references dpto(nd));
 create table trab(dni string references emp, npro int, primary key(dni,npro));
 create table takes(eID string, cID string, tYear int, tMonth int, tDay int, primary key (eID, cID));
-CREATE TABLE flight(origin string, destination string, "time" real);
+CREATE TABLE flight(origin string, destination string, time real);
 create table emp(dnisupervisor string, check dnisupervisor in select dni from emp);
 create table t(a integer check (a>-1E-1));
 
