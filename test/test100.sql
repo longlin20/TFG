@@ -1,3 +1,4 @@
+--ignored
 commit;
 Commit;
 ComMit;
