@@ -844,8 +844,6 @@ p_ren_argument(A) -->
   sql_argument(A,_AS).
 
 
-
-
 ren_argument(Arg) -->
   sql_argument(Arg,AS),
   optional_cmd(as), 
@@ -1210,7 +1208,6 @@ dmlStmt([insert_into(TableName,Colnames,Vs)|STs]/STs) -->
   insert_values_sql(L, Vs)            # 'VALUES, select statement, or DEFAULT VALUES',
   {get_table_untyped_arguments(TableName,Colnames)},
   set_error_no_fail('Syntax', 'end of statement').
-
 
 % DELETE FROM ... WHERE 
 dmlStmt([delete_from(Table,WhereCondition)|STs]/STs) -->
@@ -2587,9 +2584,6 @@ closing_parentheses_star(N,NN) -->
   closing_parentheses_star(N1,NN).
 closing_parentheses_star(N,N) -->
   [].
-
-% text_terminal(?Token)
-
 
 % terminal(?Token) for error
 

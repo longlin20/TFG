@@ -64,14 +64,13 @@ edcg:pred_info(get_pos,  1, [position]).
 %     op(Operator)
 %     comparison_op(Operator)
 %     textual_op(Operator/Case)
-% - Punctuation: ( ) , ; : "...
+% - Remark(-Remark)
+% - Punctuation: ( ) , ; : ...
 % - (User) Identifiers:
 %     id(Identifier/Case).
-% - (User) Quoted Identifiers:
+%   (User) Quoted Identifiers:
 %     double_quotes_id(Identifier).
-% - (User) Quoted Identifiers:
 %     back_quotes_id(Identifier).
-% - (User) Quoted Identifiers:
 %     square_brackets_id(Identifier).
 
 lex(Input) :-
@@ -162,7 +161,6 @@ separator(cmd(savepoint/_), Id) -->>
   identifier_but_semicolon(Id),
   !.
 
-
 separator(cmd(savepoint/_), no) -->>
   !,
   [].
@@ -205,7 +203,9 @@ separator -->>
   " ",
   inc_col:position,
   !.
-  
+
+% separator//
+% One separator (blank, tabulator, end of file)
 separator -->>
   "\t",
   !.
@@ -217,7 +217,6 @@ separator -->>
 separator -->>
   set_error('unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token'),
   !, fail.
-
 
 skip_non_visible -->>
   [C],
@@ -265,11 +264,6 @@ token(Delimiter) -->>
   delimiter(Delimiter),
   !.
 
-token(cmd_fn(Command/Original)) -->>
-  command_function(Command/Chars),
-  {atom_chars(Original, Chars)},
-  !.
-
 token(cmd(Command/Original)) -->>
   command(Command/Chars),
   {atom_chars(Original, Chars)},
@@ -279,7 +273,12 @@ token(fn(Function/Original)) -->>
   function(Function/Chars),
   {atom_chars(Original, Chars)},
   !.
-  
+
+token(cmd_fn(Command/Original)) -->>
+  command_function(Command/Chars),
+  {atom_chars(Original, Chars)},
+  !.
+ 
 token(textual_op(Operator/Original)) -->>
   textual_operator(Operator/Chars),
   {atom_chars(Original, Chars)},
