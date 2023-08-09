@@ -8,3 +8,4 @@ Las cosas que faltan que ya estan implementado en el sistema actual de DES (para
 -allowed_with_schemas
 -create_or_replace_view()
 sql_rel_cond_factor
+-exist_att

@@ -58,8 +58,6 @@ edcg:pred_info(get_pos,  1, [position]).
 %     cmd(Command/Case)
 % - Functions
 %     fn(Function/Case)
-% - Commands or Functions, word can be both cmd or fn
-%     cmd_fn(C_F/Case)
 % - Operators (symbolic and textual):
 %     op(Operator)
 %     comparison_op(Operator)
@@ -79,8 +77,8 @@ lex(Input) :-
    -> Codes = Input
    ;  read_file_to_codes(Input, Codes, [])),
   lex_codes(Codes, Tokens),
-  print(Tokens).
-  %forall(member(Token, Tokens), writeln(Token)).
+  print(Tokens),
+  forall(member(Token, Tokens), writeln(Token)).
 
 lex(Input, Tokens) :-
   reset_error,
@@ -131,10 +129,12 @@ separator(punct(_), no) -->>
   !,
   [].
 
+% If the previous token is a string, there is no need for a separator
 separator(str(_), no) -->>
   !,
   [].
 
+% If the previous token is a quotes id, there is no need for a separator
 separator(double_quotes_id(_), no) -->>
   !,
   [].
@@ -144,7 +144,7 @@ separator(back_quotes_id(_), no) -->>
   !,
   [].
 
-
+% If the previous token is a square brackets id, there is no need for a separator
 separator(square_brackets_id(_), no) -->>
   !,
   [].
@@ -165,32 +165,49 @@ separator(cmd(savepoint/_), no) -->>
   !,
   [].
 
+% If next codes are a string, there is no need for a separator
 separator(_Token, String) -->>
   string(String),
   !.
 
+/*
 separator(_Token, QuotedID) -->>
   double_quotes_identifier(QuotedID),
   !.
 
+separator(_Token, QuotedID) -->>
+  back_quotes_identifier(QuotedID),
+  !.
+
+separator(_Token, QuotedID) -->>
+  square_brackets_identifier(QuotedID),
+  !.
+*/
+
+% If next code is a newline, there is no need for a separator
 separator(_Token, punct(nl)) -->>
   "\n",
   !,
   inc_line.
 
+% If next codes are a delimiter mark, there is no need for a separator
 separator(_Token, Delimiter) -->>
   delimiter(Delimiter),
   !.
 
+% Otherwise, a separator is needed
 separator(_Token, no) -->>
   separator.
 
+% separators//
+% One or more separators.
 separators -->>
   skip_non_visible,
   separator,
   !,
   separators_star.
 
+% separators_star//: Zero or more separators.
 separators_star -->>
   separators,
   !.
@@ -199,25 +216,24 @@ separators_star -->>
   skip_non_visible,
   [].
 
+% separator//
+% One separator (blank, tabulator, end of file)
 separator -->>
   " ",
   inc_col:position,
   !.
-
-% separator//
-% One separator (blank, tabulator, end of file)
 separator -->>
   "\t",
   !.
-  
 separator -->>
   "end_of_file",
   !.
-
 separator -->>
-  set_error('unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token'),
+  set_error('unclosed delimited ID or a separator or an unrecognized token'),
   !, fail.
 
+% skip_non_visible//
+% Skip non-visible characters
 skip_non_visible -->>
   [C],
   {non_visible_code(C)},
@@ -226,6 +242,8 @@ skip_non_visible -->>
 skip_non_visible -->>
   [].
 
+% token(-Token)//
+% Tokens in the language
 token(Number) -->>
   number(Number),
   !.
@@ -254,10 +272,8 @@ token(comment(Comment)) -->> % SQL comments: include the rest of the line as the
   comment(Comment).
 
 % Rule for recognising multi-line comments in SQL
-token(comment(Comment)) -->> 
-  multi_line_comment_start,
-  !,
-  multi_line_comment_content(Comment, 1). % Add nesting level
+token(comment(C)) -->> 
+  multi_line_remark(C).
 
 
 token(Delimiter) -->>
@@ -274,10 +290,11 @@ token(fn(Function/Original)) -->>
   {atom_chars(Original, Chars)},
   !.
 
+/*
 token(cmd_fn(Command/Original)) -->>
   command_function(Command/Chars),
   {atom_chars(Original, Chars)},
-  !.
+  !.*/
  
 token(textual_op(Operator/Original)) -->>
   textual_operator(Operator/Chars),
@@ -316,30 +333,38 @@ comment_codes([]) -->> % No more codes are left to read
   [],
   !.
 
-multi_line_comment_start -->> "/*", !, add_col(2).
+multi_line_comment_start -->>   "/*", add_col(2).
+multi_line_comment_end -->> "*/" ,  add_col(2).
 
-multi_line_comment_content(Comment, Nesting) -->>
-  multi_line_comment_codes(Codes, Nesting),
-  {atom_codes(Comment, Codes)}.
+multi_line_remark(Comment) -->>
+  multi_line_comment_start,
+  remark_body(CommentCodes),
+  multi_line_comment_end,
+  { atom_codes(Comment, CommentCodes)}.
 
-multi_line_comment_codes([], 0) -->>
-!.
+remark_body(CommentCodes) -->>
+  chars_star_but_multi_line_remark_delimiters(Codes1),
+  multi_line_remark(Comment),
+  { atom_codes(Comment, CommentCodesList) },  % Convert the atom to a list of codes
+  chars_star_but_multi_line_remark_delimiters(Codes2),
+  { append([Codes1, CommentCodesList, Codes2], CommentCodes) }.
+remark_body(CommentCodes) -->>
+  chars_star_but_multi_line_remark_delimiters(CommentCodes).
 
-multi_line_comment_codes([Code|Codes], Nesting) -->>
-  [Code],
-  ( {Code == 10} -> inc_line ; inc_col ),
+chars_star_but_multi_line_remark_delimiters([]) -->>
+  [].
+chars_star_but_multi_line_remark_delimiters([]) -->>
+  "/*",
   !,
-  ( multi_line_comment_start -> 
-    {NewNesting is Nesting + 1},
-    multi_line_comment_codes(Codes, NewNesting)
-  ; multi_line_comment_end -> 
-      {NewNesting is Nesting - 1},
-      multi_line_comment_codes(Codes, NewNesting)
-  ; multi_line_comment_codes(Codes, Nesting)
-  ).
-
-multi_line_comment_end -->> "*/" , !, add_col(2).
-
+  {fail}.
+chars_star_but_multi_line_remark_delimiters([]) -->>
+  "*/",
+  !,
+  {fail}.
+chars_star_but_multi_line_remark_delimiters([C|Cs]) -->>
+  [C],
+  ({ C == 10 } -> inc_line ; inc_col),
+  chars_star_but_multi_line_remark_delimiters(Cs).
 
 delimiter(op(Delimiter)) -->>
   operator(Delimiter),
@@ -350,7 +375,8 @@ delimiter(comparison_op(Delimiter)) -->>
   !.
 
 delimiter(punct(Delimiter)) -->>
-  punctuation(Delimiter).
+  punctuation(Delimiter), 
+  !.
 
 % operator(-Operator)//
 % Operators 
@@ -397,7 +423,6 @@ textual_operator('div'/Original) -->>  lc("div", Original),  not_more_char, !, a
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PUNCTUATION
-%punctuation quotes simple is in last line
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 punctuation('(') -->> "(",   !, inc_col.
 punctuation(')') -->> ")",   !, inc_col.
@@ -412,16 +437,6 @@ punctuation(':') -->> ":",   !, inc_col.
 %punctuation('comilla') -->> "'",  !, inc_col.
 %punctuation('"') -->> """",  !, inc_col.
 punctuation('nl') -->> "\n", !, inc_line.
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% COMMAND or FUNCTION 
-% those can be commands and functions at the same time
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-command_function('replace'/Original) -->> lc("replace", Original),  not_more_char, !, add_col(7).
-command_function('float'/Original) -->>   lc("float", Original),    not_more_char, !, add_col(5).
-command_function('left'/Original) -->>    lc("left", Original),     not_more_char, !, add_col(4).
-command_function('right'/Original) -->>   lc("right", Original),    not_more_char, !, add_col(5).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % COMMAND
@@ -560,6 +575,7 @@ function('atan'/Original) -->>                   lc("atan", Original),          
 function('acot'/Original) -->>                   lc("acot", Original),                   not_more_char, !, add_col(4).
 function('abs'/Original) -->>                    lc("abs", Original),                    not_more_char, !, add_col(3).
 function('mod'/Original) -->>                    lc("mod", Original),                    not_more_char, !, add_col(3).
+function('float'/Original) -->>                  lc("float", Original),                  not_more_char, !, add_col(5).
 function('integer'/Original) -->>                lc("integer", Original),                not_more_char, !, add_col(7).
 function('sign'/Original) -->>                   lc("sign", Original),                   not_more_char, !, add_col(4).
 function('gcd'/Original) -->>                    lc("gcd", Original),                    not_more_char, !, add_col(3).
@@ -583,16 +599,19 @@ function('sum_distinct'/Original) -->>           lc("sum_distinct", Original),  
 function('times'/Original) -->>                  lc("times", Original),                  not_more_char, !, add_col(5).
 function('times_distinct'/Original) -->>         lc("times_distinct", Original),         not_more_char, !, add_col(14).
 function('pi'/Original) -->>                     lc("pi", Original),                     not_more_char, !, add_col(2).
-function('e'/Original) -->>                      lc("e", Original),                      not_more_char, !, add_col(1).
+function('e'/Original) -->>                      lc("e", Original),                      not_more_char, !, inc_col.
 function('length'/Original) -->>                 lc("length", Original),                 not_more_char, !, add_col(6).
 function('concat'/Original) -->>                 lc("concat", Original),                 not_more_char, !, add_col(6).
 function('instr'/Original) -->>                  lc("instr", Original),                  not_more_char, !, add_col(5).
+function('left'/Original) -->>                   lc("left", Original),                   not_more_char, !, add_col(4).
 function('lower'/Original) -->>                  lc("lower", Original),                  not_more_char, !, add_col(5).
 function('lpad'/Original) -->>                   lc("lpad", Original),                   not_more_char, !, add_col(4).
 function('ltrim'/Original) -->>                  lc("ltrim", Original),                  not_more_char, !, add_col(5).
+function('replace'/Original) -->>                lc("replace", Original),                not_more_char, !, add_col(7).
 function('repeat'/Original) -->>                 lc("repeat", Original),                 not_more_char, !, add_col(6).
 function('reverse'/Original) -->>                lc("reverse", Original),                not_more_char, !, add_col(7).
 function('rpad'/Original) -->>                   lc("rpad", Original),                   not_more_char, !, add_col(4).
+function('right'/Original) -->>                  lc("right", Original),                  not_more_char, !, add_col(5).
 function('rtrim'/Original) -->>                  lc("rtrim", Original),                  not_more_char, !, add_col(5).
 function('space'/Original) -->>                  lc("space", Original),                  not_more_char, !, add_col(5).
 function('substr'/Original) -->>                 lc("substr", Original),                 not_more_char, !, add_col(6).
@@ -623,6 +642,7 @@ function('nvl2'/Original) -->>                   lc("nvl2", Original),          
 function('nullif'/Original) -->>                 lc("nullif", Original),                 not_more_char, !, add_col(6).
 function('iif'/Original) -->>                    lc("iif", Original),                    not_more_char, !, add_col(3).
 function('case'/Original) -->>                   lc("case", Original),                   not_more_char, !, add_col(4).
+
 
 lc([Code|Codes], [Char|Chars]) -->>
   [C],
@@ -771,7 +791,7 @@ string_codes([Code|Codes]) -->>
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % DOUBLE QUOTES IDENTIFIER
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-double_quotes_identifier(double_quotes_id(Identifier)) -->>
+double_quotes_identifier(delimited_id(Identifier)) -->>
   """",
   rest_of_double_quotes_id(Identifier).
   
@@ -812,7 +832,7 @@ double_quotes_id_codes([Code|Codes]) -->>
 % BACK QUOTES IDENTIFIER
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-back_quotes_identifier(back_quotes_id(Identifier)) -->>
+back_quotes_identifier(delimited_id(Identifier)) -->>
   "`",
   rest_of_back_quotes_id(Identifier).
 
@@ -855,7 +875,7 @@ back_quotes_id_codes([Code|Codes]) -->>
 % SQUARE BRACKETS IDENTIFIER
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-square_brackets_identifier(square_brackets_id(Identifier))  -->>
+square_brackets_identifier(delimited_id(Identifier))  -->>
   "[",
   rest_of_square_brackets_id(Identifier).
 
@@ -1062,7 +1082,8 @@ is_lowercase_letter_code(Code) :-
   "a" = [DA],
   "z" = [DZ],
   DA =< Code,
-  DZ >= Code.
+  DZ >= Code,
+  !.
 
 % to_lowercase_code(+Code, -DCode)
 to_lowercase_code(Code, DCode) :-
@@ -1101,12 +1122,13 @@ set_error(Error) -->>
   {set_error('Lexical', Error, Position)}.
 
 non_visible_code(9).   % Tabulator
-non_visible_code(13).  % carriage return
+non_visible_code(13).  % Carriage return
 
 eoc([], []).
 
+% Those predicate is for command(savepoint)
 blanks_add -->>
-  add_col(9),
+  add_col(9), %this is for savepoint
   blanks.
 
 blanks -->>
@@ -1126,15 +1148,12 @@ blank -->>
   " ",
   inc_col:position,
   !.
-  
 blank -->>
   "\t",
   !.
-  
 blank -->>
   "end_of_file",
   !.
-
 blank -->>
   "\n",
   !,
@@ -1154,10 +1173,10 @@ test :-
 % All test names must be of the form testXXX,
 % where XXX is a left-0-padded number.
 test001 :-
-  test(lexer, lex, "1 '2' ""l3"" ", [int(1):pos(1,1),str('2'):pos(1,3),double_quotes_id('l3'):pos(1,7)]). 
+  test(lexer, lex, "1 '2' ""l3"" ", [int(1):pos(1,1),str('2'):pos(1,3),delimited_id('l3'):pos(1,7)]). 
 
 test002 :-
-  test(lexer, lex, "1 '2' \"l3\" ", [int(1):pos(1,1),str('2'):pos(1,3),double_quotes_id('l3'):pos(1,7)]). 
+  test(lexer, lex, "1 '2' \"l3\" ", [int(1):pos(1,1),str('2'):pos(1,3),delimited_id('l3'):pos(1,7)]). 
 
 test003 :-
   test(lexer, lex, "10 1234.34 -1 -43.0", [int(10):pos(1,1),frac(1234,34):pos(1,4),op(-):pos(1,12),int(1):pos(1,13),op(-):pos(1,15),frac(43,0):pos(1,16)]). 
@@ -1169,7 +1188,7 @@ test005 :-
   test(lexer, lex, "1e1 1e+1 1e-1 1.1e1 1.1e+1 1.1e-1", [float(1,0,1):pos(1,1),float(1,0,1):pos(1,5),float(1,0,-1):pos(1,10),float(1,1,1):pos(1,15),float(1,1,1):pos(1,21),float(1,1,-1):pos(1,28)]). 
 
 test006 :-
-  test(lexer, lex, " ""n"" ""ab"" ""a""""b"" ", [double_quotes_id(n):pos(1,2),double_quotes_id(ab):pos(1,6),double_quotes_id('a"b'):pos(1,11)]).
+  test(lexer, lex, " ""n"" ""ab"" ""a""""b"" ", [delimited_id(n):pos(1,2),delimited_id(ab):pos(1,6),delimited_id('a"b'):pos(1,11)]).
 
 test007 :-
   test(lexer, lex, "'ab' 1.0", [str(ab):pos(1,1),frac(1, 0):pos(1,6)]).
@@ -1178,16 +1197,16 @@ test008 :-
   test(lexer, lex, 'test/test001.sql', [cmd(select/'SELECT'):pos(1,1),id('Id'/u):pos(1,8),punct(','):pos(1,10),id(age/l):pos(1,12),punct(nl):pos(1,15),cmd(from/'FROM'):pos(2,1),id(user1/l):pos(2,6),punct(nl):pos(2,11),cmd(where/'WHERE'):pos(3,1),id(age/l):pos(3,7),comparison_op(>):pos(3,11),int(18):pos(3,13),punct(;):pos(3,15)]).
 
 test009 :-
-  test(lexer, lex, 'test/test002.sql', [cmd(select/'SELECT'):pos(1,1),id('NombreProducto'/u):pos(1,8),punct(','):pos(1,22),id('Precio'/u):pos(1,24),cmd(from/'FROM'):pos(1,31),double_quotes_id('Productos'):pos(1,36),punct(nl):pos(1,47),cmd(where/'WHERE'):pos(2,1),id('Precio'/u):pos(2,7),op(-):pos(2,14),punct('('):pos(2,16),cmd(select/select):pos(2,17),fn(avg/'AVG'):pos(2,24),punct('('):pos(2,27),id('Precio'/u):pos(2,28),punct(')'):pos(2,34),cmd(from/'FROM'):pos(2,36),id('Productos'/u):pos(2,41),punct(')'):pos(2,50),punct(;):pos(2,51)]).
+  test(lexer, lex, 'test/test002.sql', [cmd(select/'SELECT'):pos(1,1),id('NombreProducto'/u):pos(1,8),punct(','):pos(1,22),id('Precio'/u):pos(1,24),cmd(from/'FROM'):pos(1,31),delimited_id('Productos'):pos(1,36),punct(nl):pos(1,47),cmd(where/'WHERE'):pos(2,1),id('Precio'/u):pos(2,7),op(-):pos(2,14),punct('('):pos(2,16),cmd(select/select):pos(2,17),fn(avg/'AVG'):pos(2,24),punct('('):pos(2,27),id('Precio'/u):pos(2,28),punct(')'):pos(2,34),cmd(from/'FROM'):pos(2,36),id('Productos'/u):pos(2,41),punct(')'):pos(2,50),punct(;):pos(2,51)]).
 
 test010 :-
-  test(lexer, lex, 'test/test003.sql', [double_quotes_id(nOmbre):pos(1,1),double_quotes_id('no"3mbre'):pos(1,10),double_quotes_id('NOMBRE'):pos(1,22),punct(nl):pos(1,30),str(nOmbre):pos(2,1),str(nombre):pos(2,10),str('NOMBRE'):pos(2,19),punct(nl):pos(2,28),id(nOmbre/l):pos(3,1),id(nombre/l):pos(3,8),id('NOMBRE'/u):pos(3,15)]).
+  test(lexer, lex, 'test/test003.sql', [delimited_id(nOmbre):pos(1,1),delimited_id('no"3mbre'):pos(1,10),delimited_id('NOMBRE'):pos(1,22),punct(nl):pos(1,30),str(nOmbre):pos(2,1),str(nombre):pos(2,10),str('NOMBRE'):pos(2,19),punct(nl):pos(2,28),id(nOmbre/l):pos(3,1),id(nombre/l):pos(3,8),id('NOMBRE'/u):pos(3,15)]).
 
 test011 :-
   test(lexer, lex, 'test/test004.sql', [str('X=\'\'\'X'):pos(1,1),id(a/l):pos(1,13),punct(nl):pos(1,14),str(s):pos(2,1),id(b/l):pos(2,5),punct(nl):pos(2,6),str('"s"'):pos(3,1),id(c/l):pos(3,7),punct(nl):pos(3,8),str('"s"s""\''):pos(4,1),punct(nl):pos(4,11),str('It\'s raining outside'):pos(5,1),id(d/l):pos(5,25),punct(nl):pos(5,26),str('O\'Connell'):pos(6,1),punct(nl):pos(6,13),str(' d '):pos(7,1),punct(nl):pos(7,6),str('O\'Connell'):pos(8,1),id(pie/l):pos(8,14),punct(nl):pos(8,17),str(' %e_ '):pos(9,1),punct(nl):pos(9,8),str(''):pos(10,1),punct(nl):pos(10,3),str('_12e'):pos(11,1)]).
       
 test012 :-
-  test(lexer, lex, 'test/test005.sql', [cmd(varchar2/varchar2):pos(1,1),id(a_2/l):pos(1,10),punct(nl):pos(1,13),id(algo_/l):pos(2,1),punct(nl):pos(2,6),id('$T'/u):pos(3,1),id('$t1T'/u):pos(3,4),str('$T1.t'):pos(3,9),double_quotes_id('T.1'):pos(3,17),punct(nl):pos(3,22),id('$v'/u):pos(4,1),str('$V$'):pos(4,4)]).
+  test(lexer, lex, 'test/test005.sql', [cmd(varchar2/varchar2):pos(1,1),id(a_2/l):pos(1,10),punct(nl):pos(1,13),id(algo_/l):pos(2,1),punct(nl):pos(2,6),id('$T'/u):pos(3,1),id('$t1T'/u):pos(3,4),str('$T1.t'):pos(3,9),delimited_id('T.1'):pos(3,17),punct(nl):pos(3,22),id('$v'/u):pos(4,1),str('$V$'):pos(4,4)]).
 
 test013 :-
   test(lexer, lex, 'test/test006.sql', [cmd(select/select):pos(1,1),op(*):pos(1,8),comment('select -- Este * es  + un_ "comentario" \'de\' linea unica '):pos(1,10),punct(nl):pos(1,69),cmd(from/from):pos(2,1),id(tabla/l):pos(2,6)]).
@@ -1196,7 +1215,7 @@ test014 :-
   test(lexer, lex, 'test/test007.sql', [fn(times/times):pos(1,1),cmd(timestamp/timestamp):pos(1,7),cmd(no/no):pos(1,17),textual_op(not/not):pos(1,20),fn(sign/sign):pos(1,24),id(timesa/l):pos(1,29),id(times1/l):pos(1,36),punct(nl):pos(1,42),fn(substr/substr):pos(2,1),id(substring/l):pos(2,8),punct(nl):pos(2,17)]).
 
 test015 :-
-  test(lexer, lex, 'test/test008.sql', [comment('\nEste es un comentario\nh\nde varias lneas\n'):pos(1,1),punct(nl):pos(5,3),int(1):pos(6,1)]).
+  test(lexer, lex, 'test/test008.sql', [comment('\nUn comentario\nde\nvarias lineas\n'):pos(1,1),punct(nl):pos(5,3),int(1):pos(6,1)]).
   
 test016 :-
   test(lexer, lex, 'test/test009.sql', [cmd(alter/alter):pos(1,1),cmd((table)/(table)):pos(1,7),id(a/l):pos(1,13),cmd(add/add):pos(1,15),cmd(constraint/constraint):pos(1,20),cmd(primary/primary):pos(1,31),cmd(key/key):pos(1,39),punct('('):pos(1,43),id(a/l):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter/alter):pos(3,1),cmd((table)/'Table'):pos(3,7),id(b/l):pos(3,13),cmd(drop/drop):pos(3,15),cmd(constraint/constraint):pos(3,20),textual_op(not/not):pos(3,31),cmd(null/null):pos(3,35),id(b/l):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter/alter):pos(5,1),cmd((table)/(table)):pos(5,7),id(d/l):pos(5,13),cmd(add/add):pos(5,15),cmd(constraint/constraint):pos(5,20),cmd(check/check):pos(5,31),punct('('):pos(5,37),id(a/l):pos(5,38),comparison_op(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
@@ -1208,16 +1227,16 @@ test018 :-
   test(lexer, lex, 'test/test011.sql', [punct(nl):pos(1,1),cmd(select/select):pos(2,1),op(*):pos(2,8),cmd(from/from):pos(2,10),id(t/l):pos(2,15),punct(','):pos(2,16),id(s/l):pos(2,17),cmd(where/where):pos(2,19),id(t/l):pos(2,25),punct('.'):pos(2,26),id(a/l):pos(2,27),comparison_op(=):pos(2,28),id(s/l):pos(2,29),punct('.'):pos(2,30),id(a/l):pos(2,31),textual_op(and/and):pos(2,33),id(t/l):pos(2,37),punct('.'):pos(2,38),id(b/l):pos(2,39),comparison_op(=):pos(2,40),id(s/l):pos(2,41),punct('.'):pos(2,42),id(b/l):pos(2,43),punct(;):pos(2,44),punct(nl):pos(2,45)]).  
 
 test019 :-
-  test(lexer, lex, 'test/test012.sql', [cmd(create/create):pos(1,1),textual_op(or/or):pos(1,8),cmd_fn(replace/replace):pos(1,11),cmd(view/view):pos(1,19),id(v1_1/l):pos(1,24),punct('('):pos(1,28),id(a/l):pos(1,29),punct(')'):pos(1,30),cmd((as)/(as)):pos(1,32),cmd(select/select):pos(1,35),id(t1/l):pos(1,42),punct('.'):pos(1,44),id(a/l):pos(1,45),cmd(from/from):pos(1,47),id(v1_2/l):pos(1,52),id(t1/l):pos(1,57),punct(','):pos(1,59),id(v2_2/l):pos(1,60),id(t2/l):pos(1,65),cmd(where/where):pos(1,68),id(t1/l):pos(1,74),punct('.'):pos(1,76),id(a/l):pos(1,77),comparison_op(=):pos(1,78),id(t2/l):pos(1,79),punct('.'):pos(1,81),id(a/l):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert/insert):pos(3,1),cmd(into/into):pos(3,8),id(t/l):pos(3,13),cmd(values/values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
+  test(lexer, lex, 'test/test012.sql', [cmd(create/create):pos(1,1),textual_op(or/or):pos(1,8),fn(replace/replace):pos(1,11),cmd(view/view):pos(1,19),id(v1_1/l):pos(1,24),punct('('):pos(1,28),id(a/l):pos(1,29),punct(')'):pos(1,30),cmd((as)/(as)):pos(1,32),cmd(select/select):pos(1,35),id(t1/l):pos(1,42),punct('.'):pos(1,44),id(a/l):pos(1,45),cmd(from/from):pos(1,47),id(v1_2/l):pos(1,52),id(t1/l):pos(1,57),punct(','):pos(1,59),id(v2_2/l):pos(1,60),id(t2/l):pos(1,65),cmd(where/where):pos(1,68),id(t1/l):pos(1,74),punct('.'):pos(1,76),id(a/l):pos(1,77),comparison_op(=):pos(1,78),id(t2/l):pos(1,79),punct('.'):pos(1,81),id(a/l):pos(1,82),punct(nl):pos(1,83),punct(nl):pos(2,1),cmd(insert/insert):pos(3,1),cmd(into/into):pos(3,8),id(t/l):pos(3,13),cmd(values/values):pos(3,15),punct('('):pos(3,22),int(1):pos(3,23),punct(','):pos(3,24),str('1'):pos(3,25),punct(')'):pos(3,28)]).  
 
 test020 :-
   test(lexer, lex, "a1.2", [id(a1/l):pos(1,1),punct('.'):pos(1,3),int(2):pos(1,4)]).      
 
 test021 :-
-  test(lexer, lex, "1a", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1,2)))). 
+  test(lexer, lex, "1a", failure(error('Lexical', 'unclosed delimited ID or a separator or an unrecognized token', pos(1,2)))). 
 
 test022 :-
-  test(lexer, lex, "1.1a", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1,4)))).
+  test(lexer, lex, "1.1a", failure(error('Lexical', 'unclosed delimited ID or a separator or an unrecognized token', pos(1,4)))).
 
 test023 :-
   test(lexer, lex, "-1.a", failure(error('Lexical', fractional, pos(1,4)))).
@@ -1226,13 +1245,13 @@ test024 :-
   test(lexer, lex, "0.1E++2", failure(error('Lexical', exponent, pos(1,5)))).
 
 test025 :-
-  test(lexer, lex, "0.1e+2a", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1,7)))).
+  test(lexer, lex, "0.1e+2a", failure(error('Lexical', 'unclosed delimited ID or a separator or an unrecognized token', pos(1,7)))).
 
 test026 :-
   test(lexer, lex, "10 \n 1.", failure(error('Lexical', fractional, pos(2,4)))).
 
 test027 :-
-  test(lexer, lex, "_1", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1, 1)))).
+  test(lexer, lex, "_1", failure(error('Lexical', 'unclosed delimited ID or a separator or an unrecognized token', pos(1, 1)))).
 
 test028 :-
   test(lexer, lex, 'test/test013.sql',  [int(2):pos(1,1),punct(nl):pos(1,2),op(+):pos(2,1),int(2):pos(2,2),punct(nl):pos(2,3),op(-):pos(3,1),int(2):pos(3,2),punct(nl):pos(3,3),frac(2,2):pos(4,1),punct(nl):pos(4,4),op(+):pos(5,1),frac(2,2):pos(5,2),punct(nl):pos(5,5),op(-):pos(6,1),frac(2,2):pos(6,2),punct(nl):pos(6,5),float(2,0,2):pos(7,1),punct(nl):pos(7,4),float(2,0,-2):pos(8,1),punct(nl):pos(8,5),op(-):pos(9,1),float(2,0,2):pos(9,2),punct(nl):pos(9,5),op(-):pos(10,1),float(2,0,2):pos(10,2),punct(nl):pos(10,6),op(-):pos(11,1),float(2,0,-2):pos(11,2),punct(nl):pos(11,6),float(2,2,2):pos(12,1),punct(nl):pos(12,6),float(2,2,-2):pos(13,1),punct(nl):pos(13,7),op(+):pos(14,1),float(2,2,-2):pos(14,2),punct(nl):pos(14,8),op(-):pos(15,1),float(2,2,2):pos(15,2),punct(nl):pos(15,7),op(-):pos(16,1),float(2,2,-2):pos(16,2)]).
@@ -1241,16 +1260,16 @@ test029 :-
   test(lexer, lex, 'test/test029.sql', [cmd(savepoint/savepoint):pos(1,1),id_but_semicolon('+/&d'):pos(1,11),punct(nl):pos(1,15),cmd(savepoint/savepoint):pos(2,1),id_but_semicolon(e):pos(2,11),punct(;):pos(2,12),id(t/l):pos(2,13),punct(nl):pos(2,14),cmd(savepoint/savepoint):pos(3,1),quotes_id_but_quotes('+/&d3'):pos(3,11),punct(nl):pos(3,18),cmd(savepoint/'Savepoint'):pos(4,1),id_but_semicolon(kkk):pos(4,11),punct(nl):pos(4,14),cmd(savepoint/savepoint):pos(5,1),id_but_semicolon(kkk):pos(5,13),punct(nl):pos(5,16),punct(nl):pos(6,1),cmd(savepoint/savepoint):pos(7,1),id_but_semicolon(kkk):pos(8,1),punct(;):pos(8,5),punct(nl):pos(8,6),cmd(savepoint/savepoint):pos(9,1),id_but_semicolon(kkk):pos(12,2),punct(;):pos(12,5)]).
 
 test030 :-
-  test(lexer, lex, "SELECT * FROM t WHERE a=$v$;", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1, 27)))).
+  test(lexer, lex, "SELECT * FROM t WHERE a=$v$;", failure(error('Lexical', 'unclosed delimited ID or a separator or an unrecognized token', pos(1, 27)))).
 
 test031 :-
-  test(lexer, lex, 'test/test030.sql',  [square_brackets_id(t):pos(1,1),punct(nl):pos(1,4),square_brackets_id('t""'):pos(2,1),punct(nl):pos(2,6),square_brackets_id('t['):pos(3,1),punct(nl):pos(3,6),square_brackets_id('t['):pos(4,1),punct(nl):pos(4,6),square_brackets_id('t+1'):pos(5,1),punct(nl):pos(5,6),square_brackets_id('t%2'):pos(6,1),punct(nl):pos(6,6),square_brackets_id('t r w'):pos(7,1),punct(nl):pos(7,8),square_brackets_id('t$1'):pos(8,1),punct(nl):pos(8,6),double_quotes_id('no"'):pos(9,1),double_quotes_id('N"o'):pos(9,8),cmd(select/select):pos(9,15),punct(nl):pos(9,21),back_quotes_id('t'):pos(10,1),punct(nl):pos(10,4),back_quotes_id('t""'):pos(11,1),punct(nl):pos(11,6),back_quotes_id('t`'):pos(12,1),punct(nl):pos(12,6),back_quotes_id('t`'):pos(13,1),punct(nl):pos(13,6),back_quotes_id('t+1'):pos(14,1),punct(nl):pos(14,6),back_quotes_id('t%2'):pos(15,1),punct(nl):pos(15,6),back_quotes_id('t r w'):pos(16,1),punct(nl):pos(16,8),back_quotes_id('t$1'):pos(17,1),punct(nl):pos(17,6)]).
+  test(lexer, lex, 'test/test030.sql',  [delimited_id(t):pos(1,1),punct(nl):pos(1,4),delimited_id('t""'):pos(2,1),punct(nl):pos(2,6),delimited_id('t['):pos(3,1),punct(nl):pos(3,6),delimited_id('t['):pos(4,1),punct(nl):pos(4,6),delimited_id('t+1'):pos(5,1),punct(nl):pos(5,6),delimited_id('t%2'):pos(6,1),punct(nl):pos(6,6),delimited_id('t r w'):pos(7,1),punct(nl):pos(7,8),delimited_id('t$1'):pos(8,1),punct(nl):pos(8,6),delimited_id('no"'):pos(9,1),delimited_id('N"o'):pos(9,8),cmd(select/select):pos(9,15),punct(nl):pos(9,21),delimited_id('t'):pos(10,1),punct(nl):pos(10,4),delimited_id('t""'):pos(11,1),punct(nl):pos(11,6),delimited_id('t`'):pos(12,1),punct(nl):pos(12,6),delimited_id('t`'):pos(13,1),punct(nl):pos(13,6),delimited_id('t+1'):pos(14,1),punct(nl):pos(14,6),delimited_id('t%2'):pos(15,1),punct(nl):pos(15,6),delimited_id('t r w'):pos(16,1),punct(nl):pos(16,8),delimited_id('t$1'):pos(17,1),punct(nl):pos(17,6)]).
 
 test032 :-
-  test(lexer, lex, "[1]", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1, 1)))).
+  test(lexer, lex, "[1]", failure(error('Lexical', 'unclosed delimited ID or a separator or an unrecognized token', pos(1, 1)))).
 
 test033 :-
   test(lexer, lex, "savepoint", [cmd(savepoint/savepoint):pos(1,1)]).
 
 test034 :-
-  test(lexer, lex, "delete from t1 /*", failure(error('Lexical', 'unclosed delimited ID or an unclosed multiline comment or a separator or an unrecognized token', pos(1, 16)))).
+  test(lexer, lex, "delete from t1 /*", [cmd(delete/delete):pos(1,1), cmd(from/from):pos(1,8), id(t1/l):pos(1,13), op(/):pos(1,16), op(*):pos(1,17)]).

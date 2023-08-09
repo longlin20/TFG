@@ -1,8 +1,7 @@
 :- module(parser,
           [ lex_parse/2,
-            lex_parse/1]).
-
-:- use_module(misc).
+            lex_parse/1,
+            current_position/3]).
 
 :- use_module(test,
           [ test/4 ]).
@@ -132,13 +131,6 @@ filter_tokens([H|Filtered], Rest) -->
   [H], 
     { H \= punct(nl):_, H \= comment(_):_ }, 
     filter_tokens(Filtered, Rest).
-
-measure_execution_time(Goal) :-
-  statistics(walltime, [Start|_]),
-  Goal,
-  statistics(walltime, [End|_]),
-  Time is End - Start,
-  format('Execution took ~3d ms.~n', [Time]).
 
 pretty_print(Term) :-
   copy_term_nat(Term, Copy),
@@ -312,7 +304,7 @@ ddlStmt([CRVSchema|STs]/STs) -->
 create_or_replace(create_or_replace) -->
   [cmd(create/_):_],
   [textual_op(or/_):_],
-  ([cmd_fn(replace/_):_] -> {true} ; set_error('Syntax', 'REPLACE')).
+  ([fn(replace/_):_] -> {true} ; set_error('Syntax', 'REPLACE')).
 create_or_replace(create) -->
   [cmd(create/_):_].
 
@@ -1029,9 +1021,9 @@ join_operator(Outer_join) -->
   [cmd(join/_):_].
 
 outer_kind(left_join) -->
-  [cmd_fn(left/_):_], {!}.
+  [fn(left/_):_], {!}.
 outer_kind(right_join) -->
-  [cmd_fn(right/_):_], {!}.
+  [fn(right/_):_], {!}.
 outer_kind(full_join) -->
   [cmd(full/_):_].
 
@@ -1437,7 +1429,7 @@ sql_type(number(integer)) -->
   optional_integer_range(_).
 % real and float
 sql_type(number(float)) -->
-  [cmd_fn(float/_):_], 
+  [fn(float/_):_], 
   punct('(')                          # 'opening parenthesis ''(''',
   positive_integer(_Int)              # 'a positive integer',
   ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
@@ -1466,7 +1458,7 @@ sql_type(_) -->
 sql_float_type_id -->
   [cmd(real/_):_].
 sql_float_type_id -->
-  [cmd_fn(float/_):_].
+  [fn(float/_):_].
   
 sql_varchar_type_id -->
   [cmd(varchar2/_):_].
@@ -1966,7 +1958,7 @@ sql_factor(Aggr,T) -->
   sql_special_aggregate_function(Aggr,T),
   !.  % WARNING: This cut is only for improving parsing performance
 sql_factor(FAs,T) --> 
-  fn_identifier(SF),
+  [fn(SF/_):_],
   {function(SF,F,_,_,[T|Ts],Arity),
     Arity>0},
   [punct('('):_],
@@ -2025,27 +2017,13 @@ sql_factor(case(Expr,ExprValList,Default),Type) -->
 sql_factor(cte(C,T),T) -->
   sql_constant(cte(C,T)).
 sql_factor(F,T) --> 
-  fn_identifier(SF),
+  [fn(SF/_):_],
   {function(SF,F,_,Type,[T],0),
     Type\==aggregate % 0-arity aggregate functions from Datalog are not allowed in SQL
     },
   optional_parentheses.
 sql_factor(C,_) -->
   column(C).
-
-
-
-%sql_factor(_,_) -->
-%  set_error('Syntax', 'valid SQL factor').
-fn_identifier(SF) -->
-  [fn(SF/_):_];
-  [cmd_fn(SF/_):_].
-/*
-  [id(e):_], {SF = e};
-  [id_lc_start(e):_], {SF = e};
-  [id(pi):_], {SF = pi};
-  [id_lc_start(pi):_], {SF = pi}.
-*/
 
 sql_function_arguments(1,[E],[T]) -->
   {dif(T,type(_))},
@@ -2335,19 +2313,10 @@ relname(RelName) -->
 % double_quotes_id | square_brackets_id | back_quotes_id | 
 % id | cmd/fn | textual_op but except not
 sql_user_identifier(Name) -->
-  [double_quotes_id(Name):_Pos].
-
-sql_user_identifier(Name) --> 
-  [square_brackets_id(Name):_Pos].
-
-sql_user_identifier(Name) --> 
-  [back_quotes_id(Name):_Pos].
+  [delimited_id(Name):_Pos].
 
 sql_user_identifier(Name) -->
   [id(Name/_Case):_Pos].
-
-sql_user_identifier(Name) -->
-  [cmd_fn(_Lc/Name):_Pos].
 
 sql_user_identifier(Name) -->
   [fn(_Lc/Name):_Pos].
@@ -2588,9 +2557,7 @@ closing_parentheses_star(N,N) -->
 % terminal(?Token) for error
 
 %terminal(id(_)).
-%terminal(double_quotes_id(_)).
 terminal(cmd(_)).
-%terminal(cmd_fn(_)).
 %terminal(fn(_)).
 terminal(op(_)).
 terminal(textual_op(_)).
@@ -2600,6 +2567,17 @@ terminal(comparison_op(_)).
 %terminal(float(_, _, _)).
 %terminal(str(_)).
 terminal(punct(_)).
+
+
+% current_position(-Position)//
+% Consult the position of the current token, without consuming it
+current_position(Position, [Token:Position|TPs], [Token:Position|TPs]) :-
+  !.
+current_position(pos(last,last), [], []).
+
+% L1-L2=LO LO+L2=L1
+list_diff(L1,L2,LO) :- 
+  append(LO,L2,L1).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Tests

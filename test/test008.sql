@@ -1,6 +1,6 @@
 /*
-Este es un comentario
-/*h*/
-de varias líneas
+Un comentario
+/*de*/
+varias lineas
 */
 1

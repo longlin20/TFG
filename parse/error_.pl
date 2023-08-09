@@ -42,7 +42,7 @@
             set_error_with_parameter/4,
             set_error_no_fail/4 ]).
 
-:- use_module(misc,
+:- use_module(parser,
           [ current_position/3]).
 
 % error(+Token, +Position)
