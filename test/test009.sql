@@ -1,6 +1,6 @@
-alter table a add  constraint primary key (a);
+alter table t1 add constraint primary key (a);
 
-alter Table b drop constraint not null b;
+alter Table t2 drop constraint not null b;
 
-alter table d add  constraint check (a>0);
+alter table t3 add  constraint check (a>0);
 

@@ -64,8 +64,8 @@ lex_parse(Input) :-
   split_statements(FilteredTokens, [punct(';'):_], StatementLists),
   maplist(parse, StatementLists, SyntaxTrees),
   flatten(SyntaxTrees, FlatSyntaxTrees),
-  print(FlatSyntaxTrees).
-  %forall(member(Tree, FlatSyntaxTrees), pretty_print(Tree)).
+  print(FlatSyntaxTrees),
+  forall(member(Tree, FlatSyntaxTrees), pretty_print(Tree)).
 
 
 lex_parse(Input, FlatSyntaxTrees) :-
@@ -96,8 +96,6 @@ parse(_Tokens, _SyntaxTrees) :-
   process_error,
   !, fail.
 
-
-%   DDLstmt[;] | DMLstmt[;] | DQLstmt[;] | ISLstmt[;] | TMLstmt[;]
 % DDLstmt[;] | DMLstmt[;] | DQLstmt[;] | ISLstmt[;] | TMLstmt[;]
 statement(STs) -->
   {statement_type(Stmt)},
@@ -129,8 +127,7 @@ filter_tokens(Filtered, Rest) -->
 % Include non-newline and non-comment tokens.
 filter_tokens([H|Filtered], Rest) --> 
   [H], 
-    { H \= punct(nl):_, H \= comment(_):_ }, 
-    filter_tokens(Filtered, Rest).
+  filter_tokens(Filtered, Rest).
 
 pretty_print(Term) :-
   copy_term_nat(Term, Copy),
@@ -170,7 +167,6 @@ pretty_print(Term) :-
 
 
 % DDL Statements
-
 % CREATE TABLE
 ddlStmt([CRTSchema|STs]/STs) -->
   create_or_replace(CR),
@@ -605,8 +601,7 @@ ub_DQL([(with(SQLst,SQLsts),_AS)|STs]/STs) -->
   assume_list(SQLsts)                 # 'list of assumptions',
   dqlStmt([SQLst|STs]/STs)            # 'SELECT statement',
   set_error_no_fail('Syntax', 'end of ASSUME statement').
- % {allowed_with_schemas(SQLsts)},
- % !.
+ % {allowed_with_schemas(SQLsts)}.
 % WITH
 ub_DQL([(with(SQLst,SQLsts),_AS)|STs]/STs) -->
   [cmd(with/_):_],
@@ -614,8 +609,7 @@ ub_DQL([(with(SQLst,SQLsts),_AS)|STs]/STs) -->
   local_view_definition_list(SQLsts)  # 'list of temporary view definitions',
   dqlStmt([SQLst|STs]/STs)            # 'SELECT statement',
   set_error_no_fail('Syntax', 'end of WITH statement').
- % {allowed_with_schemas(SQLsts)},
-  %!.
+ % {allowed_with_schemas(SQLsts)}.
 % SELECT
 ub_DQL([STs1|STs]/STs) --> 
   select_DQL([STs1|STs]/STs).
@@ -708,7 +702,7 @@ local_view_definition_list([V|Vs]) -->
 
 local_view_definition([(SQLst,Schema)|STs]/STs) -->
   optional_cmd(recursive),
-  assume_schema(Schema)               # 'schema',
+  assume_schema(Schema)               # 'assume/with schema',
   cmd(as/_)                           # 'AS',
   opening_parentheses_star(N),
   dqlStmt([(SQLst,Schema)|STs]/STs),
@@ -881,7 +875,7 @@ user_symbol(Original) -->
   {
     string_chars(Original, [FirstChar|_]),  
     char_code(FirstChar, FirstCharCode),
-    is_lowercase_letter_code(FirstCharCode)  % Check if the code corresponds to a lowercase letter
+    is_lowercase_letter_code(FirstCharCode)  
   }.
 
 user_symbol(Original) --> 
@@ -889,7 +883,7 @@ user_symbol(Original) -->
   {
     string_chars(Original, [FirstChar|_]),  
     char_code(FirstChar, FirstCharCode),
-    is_lowercase_letter_code(FirstCharCode)  % Check if the code corresponds to a lowercase letter
+    is_lowercase_letter_code(FirstCharCode)  
   }.
 
 user_symbol(Original) --> 
@@ -897,7 +891,7 @@ user_symbol(Original) -->
   {
     string_chars(Original, [FirstChar|_]),  
     char_code(FirstChar, FirstCharCode),
-    is_lowercase_letter_code(FirstCharCode)  % Check if the code corresponds to a lowercase letter
+    is_lowercase_letter_code(FirstCharCode)  
   }.
 
 %FROM relations
@@ -1176,7 +1170,7 @@ optional_fetch_first(top(_N)) -->
 %   |
 %   UPDATE TableName [[AS] Identifier] SET Att=Expr {,Att=Expr} [WHERE Condition]
 
-% INSERT INTO Table(Columns) [VALUES(...) | selectStm]
+% INSERT INTO Table(Columns) [VALUES(...) | DQLstmt]
 dmlStmt([insert_into(TableName,Colnames,Vs)|STs]/STs) -->
   [cmd(insert/_):_],
   cmd(into/_)                         # 'INTO',
@@ -1194,7 +1188,7 @@ dmlStmt([insert_into(TableName,Colnames,Vs)|STs]/STs) -->
 % INSERT INTO Table [VALUES(...) | selectStm]
 dmlStmt([insert_into(TableName,Colnames,Vs)|STs]/STs) -->
   [cmd(insert/_):_],
-  cmd(into/_)                           # 'INTO',
+  cmd(into/_)                         # 'INTO',
   tablename(TableName)                # 'table name',
   {(get_relation_arity(TableName,L) -> true ; true)},
   insert_values_sql(L, Vs)            # 'VALUES, select statement, or DEFAULT VALUES',
@@ -1209,13 +1203,13 @@ dmlStmt([delete_from(Table,WhereCondition)|STs]/STs) -->
   where_clause(WhereCondition),
   set_error_no_fail('Syntax', 'end of statement').
 
+% UPDATE ... SET ... [WHERE ]
 dmlStmt([update(_Table,_Assignments,_Condition)|STs]/STs) -->
   [cmd(update/_):_],
   set_error_no_fail('Syntax', 'a different word after UPDATE, TABLE is not allowed'),
   [cmd((table)/_):_],
   {!, fail}.
 
-% UPDATE ... SET ... [WHERE ]
 dmlStmt([update(Table,Assignments,WhereCondition)|STs]/STs) -->
   [cmd(update/_):_],
   p_ren_tablename(Table)              # 'table name',
@@ -1370,7 +1364,7 @@ tmlStmt([rollback([SP])|STs]/STs) -->
   optional_cmd(work),
   cmd(to/_)                           # 'TO',
   cmd(savepoint/_)                    # 'SAVEPOINT',
-  filename(SP)                        # 'savepoint name(id without semicolon or quoted id without unescaped quotes)'.
+  filename(SP)                        # 'savepoint name(id without semicolon or quoted id without escaped quotes)'.
   %!. 
 
 % ROLLBACK
@@ -1382,16 +1376,13 @@ tmlStmt([rollback([])|STs]/STs) -->
 % SAVEPOINT
 tmlStmt([savepoint([SP])|STs]/STs) -->
   [cmd(savepoint/_):_],
-  filename(FileName)                  # 'savepoint name(id without semicolon or quoted id without unescaped quotes)',
+  filename(FileName)                  # 'savepoint name(id without semicolon or quoted id without escaped quotes)',
   {atom_concat(FileName,'.ddb',SP)}.
 
 % filename(FileName)//
 % get file name
 filename(FileName) -->
-  [id_but_semicolon(FileName):_Pos].
-
-filename(FileName) -->
-  [quotes_id_but_quotes(FileName):_Pos].
+  [filename(FileName):_Pos].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SQL Types
@@ -1890,7 +1881,7 @@ sql_expression(PP,Lo,To) -->
 sql_expression(PP,Lo,To) -->
   [punct('('):_],
   sql_expression(1200,L,T), 
-  punct(')')                          # 'closing parenthesis'')''',
+  punct(')')                          # 'closing parenthesis '')''',
   !, % WARNING
   r_sql_expression(PP,0,L/Lo,T/To).
 sql_expression(PP,Lo,To) -->
@@ -1971,7 +1962,7 @@ sql_factor(Function,number(_)) -->
   extract_field(Field)                # 'valid datetime field (year, month, day, hour, minute, second)',
   cmd(from/_)                         # 'FROM',
   sql_expression(C,datetime(_))       # 'valid datetime expression',  
-  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')),
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')),
   {Function=..[Field,C],
     !}.
 sql_factor(cast(Factor,Type),Type) -->
@@ -1980,22 +1971,22 @@ sql_factor(cast(Factor,Type),Type) -->
   sql_factor(Factor,_),
   cmd(as/_)                           # 'AS',
   sql_type(Type)                      # 'valid type name',  
-  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')).
 sql_factor(coalesce(ExprSeq),_Type) -->
   [fn(coalesce/_):_],
   punct('(')                          # 'opening parenthesis ''(''',
-  sql_expr_sequence(ExprSeq),
-  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
+  sql_expr_sequence(ExprSeq),   
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')).
 sql_factor(greatest(ExprSeq),_Type) -->
   [fn(greatest/_):_],
   punct('(')                          # 'opening parenthesis ''(''',
   sql_expr_sequence(ExprSeq),
-  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')).
 sql_factor(least(ExprSeq),_Type) -->
   [fn(least/_):_],
   punct('(')                          # 'opening parenthesis ''(''',
   sql_expr_sequence(ExprSeq),
-  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')).
 sql_factor(iif(Cond,Expr1,Expr2),_Type) -->
   [fn(iif/_):_],
   punct('(')                          # 'opening parenthesis ''(''',
@@ -2004,7 +1995,7 @@ sql_factor(iif(Cond,Expr1,Expr2),_Type) -->
   sql_expression(Expr1,_T1)           # 'valid expression', 
   punct(',')                          # 'comma',
   sql_expression(Expr2,_T2)           # 'valid expression', 
-  ([punct(')'):_] -> {true} ; set_error('Syntax', 'closing parenthesis '')''')).
+  ([punct(')'):_] -> {true} ; set_error('Syntax', 'comma or closing parenthesis '')''')).
 sql_factor(case(CondValList,Default),Type) -->
   [fn(case/_):_],
   sql_case2_when_thens(CondValList),
@@ -2392,8 +2383,8 @@ syntax_check_same_types(E,LT,RT) -->
 syntax_check_same_types(_E,_LT,_RT) -->
   [].
 
-/*
-syntax_check_between(cte(CteL,TypeL),cte(CteR,TypeR)) -->
+
+/*syntax_check_between(cte(CteL,TypeL),cte(CteR,TypeR)) -->
   {!,
     (compute_comparison_primitive(CteL=<CteR,CteL=<CteR)
     ->
@@ -2401,9 +2392,10 @@ syntax_check_between(cte(CteL,TypeL),cte(CteR,TypeR)) -->
     ;
     my_raise_exception(generic,syntax(['First constant in BETWEEN (','$exec'(write_expr(cte(CteL,TypeL))), ') must be less than or equal to the second one (','$exec'(write_expr(cte(CteR,TypeR))),')']),[]))
   }.
+*/
 syntax_check_between(_L,_R) -->
   [].
-*/
+
 
 syntax_check_expr_type(L,LT,ET) -->
   {nonvar(LT),
@@ -2653,7 +2645,7 @@ test007 :-
 
 test008 :-
   test(parser, lex_parse, "ROLLBACK TO SAVEPOINT \"s\"\"p1\"",
-    failure(error('Syntax', 'savepoint name(id without semicolon or quoted id without unescaped quotes)', pos(1, 23)))).
+    failure(error('Syntax', 'savepoint name(id without semicolon or quoted id without escaped quotes)', pos(1, 23)))).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DDLstmt CREATE, CREATE OR REPLACE
@@ -3158,7 +3150,7 @@ test093 :-
 
 test094 :-
   test(parser, lex_parse, "with 2 select 1 select * from v",
-    failure(error('Syntax', 'schema', pos(1, 6)))).
+    failure(error('Syntax', 'assume/with schema', pos(1, 6)))).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %DMLstmt INSERT INTO STATEMENTS
@@ -3370,7 +3362,7 @@ test126 :-
 
 test127 :-
   test(parser, lex_parse, "select extract(hour from time '22:05:31'",
-    failure(error('Syntax', 'closing parenthesis '')''', pos(last, last)))).
+    failure(error('Syntax', 'comma or closing parenthesis '')''', pos(last, last)))).
 
 test128 :-
   test(parser, lex_parse, "select cast('1' sa float)",

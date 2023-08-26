@@ -7,5 +7,6 @@ Las cosas que faltan que ya estan implementado en el sistema actual de DES (para
  (Ya tengo implementado uno simplificado para ver los resultados que sale y hacer comparacion habrá que sustituir por los que estan en DES).
 -allowed_with_schemas
 -create_or_replace_view()
-sql_rel_cond_factor
+-sql_rel_cond_factor
 -exist_att
+-separacion/aislamiento de sentencias(por nl o por ;)

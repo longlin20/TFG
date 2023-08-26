@@ -77,7 +77,7 @@ lex(Input) :-
    -> Codes = Input
    ;  read_file_to_codes(Input, Codes, [])),
   lex_codes(Codes, Tokens),
-  print(Tokens),
+  %print(Tokens),
   forall(member(Token, Tokens), writeln(Token)).
 
 lex(Input, Tokens) :-
@@ -289,12 +289,6 @@ token(fn(Function/Original)) -->>
   function(Function/Chars),
   {atom_chars(Original, Chars)},
   !.
-
-/*
-token(cmd_fn(Command/Original)) -->>
-  command_function(Command/Chars),
-  {atom_chars(Original, Chars)},
-  !.*/
  
 token(textual_op(Operator/Original)) -->>
   textual_operator(Operator/Chars),
@@ -411,8 +405,8 @@ comparison_operator('<')   -->> "<",   !, inc_col.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TEXTUAL OP
-%mod trantando como fn
-%textual_operator('mod')
+%mod is in function part
+%function('mod')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 textual_operator('and'/Original) -->>  lc("and", Original),  not_more_char, !, add_col(3).
 textual_operator('or'/Original) -->>   lc("or", Original),   not_more_char, !, add_col(2).
@@ -434,7 +428,6 @@ punctuation('.') -->> ".",   !, inc_col.
 punctuation(';') -->> ";",   !, inc_col.
 punctuation('::') -->> "::", !, add_col(2).
 punctuation(':') -->> ":",   !, inc_col.
-%punctuation('comilla') -->> "'",  !, inc_col.
 %punctuation('"') -->> """",  !, inc_col.
 punctuation('nl') -->> "\n", !, inc_line.
 
@@ -966,11 +959,11 @@ identifier(_Identifier) -->>
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % IDENTIFIER BUT SEMICOLON and QUOTES IDENTIFIER BUT QUOTES 
-%those is for SAVEPOINT
+%return filename(ID) those is for SAVEPOINT
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % identifier_but_semicolon(-Remark)//
-identifier_but_semicolon(id_but_semicolon(Id)) -->>
+identifier_but_semicolon(filename(Id)) -->>
   identifier_but_semicolon_codes(Codes),
   !,
   {atom_codes(Id, Codes)}.
@@ -1000,7 +993,7 @@ identifier_but_semicolon_codes([]) -->> % No more codes are left to read
   [],
   !.
 
-quotes_identifier_but_quotes(quotes_id_but_quotes(Id)) -->>
+quotes_identifier_but_quotes(filename(Id)) -->>
   """",
   quotes_identifier_but_quotes_codes(Codes),
   """",
@@ -1218,7 +1211,7 @@ test015 :-
   test(lexer, lex, 'test/test008.sql', [comment('\nUn comentario\nde\nvarias lineas\n'):pos(1,1),punct(nl):pos(5,3),int(1):pos(6,1)]).
   
 test016 :-
-  test(lexer, lex, 'test/test009.sql', [cmd(alter/alter):pos(1,1),cmd((table)/(table)):pos(1,7),id(a/l):pos(1,13),cmd(add/add):pos(1,15),cmd(constraint/constraint):pos(1,20),cmd(primary/primary):pos(1,31),cmd(key/key):pos(1,39),punct('('):pos(1,43),id(a/l):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter/alter):pos(3,1),cmd((table)/'Table'):pos(3,7),id(b/l):pos(3,13),cmd(drop/drop):pos(3,15),cmd(constraint/constraint):pos(3,20),textual_op(not/not):pos(3,31),cmd(null/null):pos(3,35),id(b/l):pos(3,40),punct(;):pos(3,41),punct(nl):pos(3,42),punct(nl):pos(4,1),cmd(alter/alter):pos(5,1),cmd((table)/(table)):pos(5,7),id(d/l):pos(5,13),cmd(add/add):pos(5,15),cmd(constraint/constraint):pos(5,20),cmd(check/check):pos(5,31),punct('('):pos(5,37),id(a/l):pos(5,38),comparison_op(>):pos(5,39),int(0):pos(5,40),punct(')'):pos(5,41),punct(;):pos(5,42),punct(nl):pos(5,43),punct(nl):pos(6,1)]).
+  test(lexer, lex, 'test/test009.sql', [cmd(alter/alter):pos(1,1),cmd((table)/(table)):pos(1,7),id(t1/l):pos(1,13),cmd(add/add):pos(1,16),cmd(constraint/constraint):pos(1,20),cmd(primary/primary):pos(1,31),cmd(key/key):pos(1,39),punct('('):pos(1,43),id(a/l):pos(1,44),punct(')'):pos(1,45),punct(;):pos(1,46),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(alter/alter):pos(3,1),cmd((table)/'Table'):pos(3,7),id(t2/l):pos(3,13),cmd(drop/drop):pos(3,16),cmd(constraint/constraint):pos(3,21),textual_op(not/not):pos(3,32),cmd(null/null):pos(3,36),id(b/l):pos(3,41),punct(;):pos(3,42),punct(nl):pos(3,43),punct(nl):pos(4,1),cmd(alter/alter):pos(5,1),cmd((table)/(table)):pos(5,7),id(t3/l):pos(5,13),cmd(add/add):pos(5,16),cmd(constraint/constraint):pos(5,21),cmd(check/check):pos(5,32),punct('('):pos(5,38),id(a/l):pos(5,39),comparison_op(>):pos(5,40),int(0):pos(5,41),punct(')'):pos(5,42),punct(;):pos(5,43),punct(nl):pos(5,44),punct(nl):pos(6,1)]).
 
 test017 :-
   test(lexer, lex, 'test/test010.sql', [cmd(select/'SELECT'):pos(1,1),op(*):pos(1,8),cmd(from/'FROM'):pos(1,10),id(tabla/l):pos(1,15),cmd(where/'WHERE'):pos(1,21),id(nombre/l):pos(1,27),comparison_op(=):pos(1,34),str('Juan Prez'):pos(1,36),punct(nl):pos(1,47),punct(nl):pos(2,1),cmd(select/'SELECT'):pos(3,1),op(*):pos(3,8),cmd(from/'FROM'):pos(3,10),id('Customers'/u):pos(3,15),punct(nl):pos(3,24),cmd(where/'WHERE'):pos(4,1),id('CustomerName'/u):pos(4,7),cmd(like/'LIKE'):pos(4,20),str('a%'):pos(4,25),punct(;):pos(4,29),punct(nl):pos(4,30),punct(nl):pos(5,1),cmd(insert/insert):pos(6,1),cmd(into/into):pos(6,8),id(a/l):pos(6,13),cmd(values/values):pos(6,15),punct('('):pos(6,22),str(a1):pos(6,23),punct(')'):pos(6,27),punct(;):pos(6,28)]).
@@ -1257,7 +1250,7 @@ test028 :-
   test(lexer, lex, 'test/test013.sql',  [int(2):pos(1,1),punct(nl):pos(1,2),op(+):pos(2,1),int(2):pos(2,2),punct(nl):pos(2,3),op(-):pos(3,1),int(2):pos(3,2),punct(nl):pos(3,3),frac(2,2):pos(4,1),punct(nl):pos(4,4),op(+):pos(5,1),frac(2,2):pos(5,2),punct(nl):pos(5,5),op(-):pos(6,1),frac(2,2):pos(6,2),punct(nl):pos(6,5),float(2,0,2):pos(7,1),punct(nl):pos(7,4),float(2,0,-2):pos(8,1),punct(nl):pos(8,5),op(-):pos(9,1),float(2,0,2):pos(9,2),punct(nl):pos(9,5),op(-):pos(10,1),float(2,0,2):pos(10,2),punct(nl):pos(10,6),op(-):pos(11,1),float(2,0,-2):pos(11,2),punct(nl):pos(11,6),float(2,2,2):pos(12,1),punct(nl):pos(12,6),float(2,2,-2):pos(13,1),punct(nl):pos(13,7),op(+):pos(14,1),float(2,2,-2):pos(14,2),punct(nl):pos(14,8),op(-):pos(15,1),float(2,2,2):pos(15,2),punct(nl):pos(15,7),op(-):pos(16,1),float(2,2,-2):pos(16,2)]).
 
 test029 :-
-  test(lexer, lex, 'test/test029.sql', [cmd(savepoint/savepoint):pos(1,1),id_but_semicolon('+/&d'):pos(1,11),punct(nl):pos(1,15),cmd(savepoint/savepoint):pos(2,1),id_but_semicolon(e):pos(2,11),punct(;):pos(2,12),id(t/l):pos(2,13),punct(nl):pos(2,14),cmd(savepoint/savepoint):pos(3,1),quotes_id_but_quotes('+/&d3'):pos(3,11),punct(nl):pos(3,18),cmd(savepoint/'Savepoint'):pos(4,1),id_but_semicolon(kkk):pos(4,11),punct(nl):pos(4,14),cmd(savepoint/savepoint):pos(5,1),id_but_semicolon(kkk):pos(5,13),punct(nl):pos(5,16),punct(nl):pos(6,1),cmd(savepoint/savepoint):pos(7,1),id_but_semicolon(kkk):pos(8,1),punct(;):pos(8,5),punct(nl):pos(8,6),cmd(savepoint/savepoint):pos(9,1),id_but_semicolon(kkk):pos(12,2),punct(;):pos(12,5)]).
+  test(lexer, lex, 'test/test029.sql', [cmd(savepoint/savepoint):pos(1,1),filename('+/&d'):pos(1,11),punct(nl):pos(1,15),cmd(savepoint/savepoint):pos(2,1),filename(e):pos(2,11),punct(;):pos(2,12),id(t/l):pos(2,13),punct(nl):pos(2,14),cmd(savepoint/savepoint):pos(3,1),filename('+/&d3'):pos(3,11),punct(nl):pos(3,18),cmd(savepoint/'Savepoint'):pos(4,1),filename(kkk):pos(4,11),punct(nl):pos(4,14),cmd(savepoint/savepoint):pos(5,1),filename(kkk):pos(5,13),punct(nl):pos(5,16),punct(nl):pos(6,1),cmd(savepoint/savepoint):pos(7,1),filename(kkk):pos(8,1),punct(;):pos(8,5),punct(nl):pos(8,6),cmd(savepoint/savepoint):pos(9,1),filename(kkk):pos(12,2),punct(;):pos(12,5)]).
 
 test030 :-
   test(lexer, lex, "SELECT * FROM t WHERE a=$v$;", failure(error('Lexical', 'unclosed delimited ID or a separator or an unrecognized token', pos(1, 27)))).
@@ -1273,3 +1266,7 @@ test033 :-
 
 test034 :-
   test(lexer, lex, "delete from t1 /*", [cmd(delete/delete):pos(1,1), cmd(from/from):pos(1,8), id(t1/l):pos(1,13), op(/):pos(1,16), op(*):pos(1,17)]).
+
+test035 :-
+  test(lexer, lex, "[t", failure(error('Lexical', 'unclosed delimited ID or a separator or an unrecognized token', pos(1, 1)))).
+
