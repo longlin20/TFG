@@ -47,8 +47,6 @@ test.pl: manejo de los tests.
 
 utils.pl: aqui contiene predicados de des_common.pl y des_dl_debug.pl que necesitaba para parser.pl
 
-dudas.txt: las dudas.
-
 carpeta test:
 test001.sql-test013.sql, 029 y 030 para lexer.
 test014.sql-test028.sql 031 para parser.
